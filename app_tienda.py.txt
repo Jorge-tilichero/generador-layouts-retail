@@ -15,8 +15,7 @@ PROF_FRIO = 2.00
 PROF_PERIMETRO = 0.45 
 GONDOLA_PROF = 0.90   
 CABECERA_PROF = 0.45  
-PUERTA_ANCHO = 1.80    # Variable restaurada
-PASILLO_STD = 1.20     # Variable restaurada
+PUERTA_ANCHO = 1.80   
 ISLA_DIM = 0.60
 
 # --- CLASIFICADOR DE MATRIZ DE FORMATOS OXXO ---
@@ -162,14 +161,14 @@ def dibujar_layout_oxxo(conf):
                 dibujar(x_chk, y_chk, ancho_check, PROF_CONTRA, '#82E0AA', texto='C.CAJA', fontsize=4)
                 dibujar(x_chk, y_chk + PROF_CONTRA, ancho_check, PROF_CAJERO, '#EAEDED')
                 for i in range(conf['cant_check']): dibujar(x_chk + (i*MOD_2FT), y_chk + PROF_CONTRA + PROF_CAJERO, MOD_2FT, PROF_CHECK, '#ABEBC6', texto=f'CHK{i+1}', fontsize=5)
-                if conf['t_pasillos']: dibujar(x_chk, y_chk + h_chk, ancho_check, PASILLO_STD, '#D5F5E3', ec='none', alpha=0.5, texto='PASILLO COBRO', fontsize=5)
+                if conf['t_pasillos']: dibujar(x_chk, y_chk + h_chk, ancho_check, 1.20, '#D5F5E3', ec='none', alpha=0.5, texto='PASILLO COBRO', fontsize=5)
             else:
                 dibujar(x_chk, y_chk, PROF_CONTRA, ancho_check, '#82E0AA')
                 dibujar(x_chk + PROF_CONTRA, y_chk, PROF_CAJERO, ancho_check, '#EAEDED')
                 dibujar(x_chk + PROF_CONTRA + PROF_CAJERO, y_chk, PROF_CHECK, ancho_check, '#ABEBC6', texto='CHECKOUT', rot=90)
-                if conf['t_pasillos']: dibujar(x_chk + w_chk, y_chk, PASILLO_STD, ancho_check, '#D5F5E3', ec='none', alpha=0.5, texto='PASILLO COBRO', rot=90, fontsize=5)
+                if conf['t_pasillos']: dibujar(x_chk + w_chk, y_chk, 1.20, ancho_check, '#D5F5E3', ec='none', alpha=0.5, texto='PASILLO COBRO', rot=90, fontsize=5)
             
-            obstaculos.append((x_chk, y_chk, w_chk, h_chk + (PASILLO_STD if rot==0 and conf['t_pasillos'] else 0)))
+            obstaculos.append((x_chk, y_chk, w_chk, h_chk + (1.20 if rot==0 and conf['t_pasillos'] else 0)))
             area_exh += (ancho_check * PROF_CHECK)
         else: errores.append("Checkout colisiona o no cabe en ese muro.")
 
@@ -185,7 +184,7 @@ def dibujar_layout_oxxo(conf):
         if not colisiona(x_frio, y_frio, ancho_frio, PROF_FRIO, obstaculos):
             dibujar(x_frio, y_frio, ancho_frio, PROF_FRIO, '#AED6F1', texto='CUARTO FRÍO', weight='bold')
             for i in range(ptas): dibujar(x_frio + (i*MOD_2FT), y_frio, MOD_2FT, 0.15, '#2874A6', ec='white', texto=f'P{i+1}', color_txt='white', rot=90, fontsize=4)
-            obstaculos.append((x_frio, y_frio - (PASILLO_STD if conf['t_pasillos'] else 0), ancho_frio, PROF_FRIO + (PASILLO_STD if conf['t_pasillos'] else 0)))
+            obstaculos.append((x_frio, y_frio - (1.20 if conf['t_pasillos'] else 0), ancho_frio, PROF_FRIO + (1.20 if conf['t_pasillos'] else 0)))
             area_exh += (ancho_frio * PROF_FRIO)
         else: errores.append("El Cuarto Frío colisiona con la bodega o paredes.")
 
