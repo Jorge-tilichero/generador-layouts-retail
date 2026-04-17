@@ -40,25 +40,13 @@ def colisiona(x, y, w, h, lista_obstaculos):
             return True, nombre
     return False, ""
 
-# --- MOTOR DE TRANSFORMACIÓN ESPACIAL ---
-def obtener_transformacion(muro, ancho_orig, largo_orig):
-    def transform(x, y, w, h, rot_texto=0):
-        if muro == 'Inferior (Frente)': return x, y, w, h, rot_texto
-        elif muro == 'Lateral Izquierdo': return y, x, h, w, rot_texto - 90
-        elif muro == 'Lateral Derecho': return ancho_orig - y - h, x, h, w, rot_texto + 90
-    return transform
-
 def normalizar_rotacion(r):
     r = r % 360
     if 90 < r < 270: r -= 180
     return r
 
 def dibujar_layout_oxxo_v21(conf):
-    ancho_real, largo_real = conf['ancho'], conf['largo']
-    muro = conf['muro_puerta']
-    
-    if muro == 'Inferior (Frente)': W, L = ancho_real, largo_real
-    else: W, L = largo_real, ancho_real 
+    W, L = conf['ancho'], conf['largo']
 
     fig, ax = plt.subplots(figsize=(12, 12))
     ax.set_xlim(0, W)
@@ -69,8 +57,6 @@ def dibujar_layout_oxxo_v21(conf):
     ax.yaxis.set_major_locator(MultipleLocator(1))
     ax.grid(which='major', color='#E5E7E9', linestyle='-', linewidth=0.5, zorder=0)
 
-    trans = obtener_transformacion(muro, ancho_real, largo_real)
-    
     # DOBLE CAPA DE COLISIÓN
     obs_fisicos = []  # Muebles, muros (nada puede cruzarlos)
     obs_pasillos = [] # Vías de circulación (muebles no pueden cruzarlos, pasillos sí)
@@ -99,14 +85,13 @@ def dibujar_layout_oxxo_v21(conf):
             elif tipo == "Pasillo": obs_pasillos.append((x, y, w, h, name))
             ec, lw = ('black', 1) if tipo == "Fisico" else ('none', 0)
 
-        xn, yn, wn, hn, rotn = trans(x, y, w, h, rot)
-        ax.add_patch(patches.Rectangle((xn, yn), wn, hn, color=color, ec=ec, lw=lw, alpha=alpha, zorder=z))
+        ax.add_patch(patches.Rectangle((x, y), w, h, color=color, ec=ec, lw=lw, alpha=alpha, zorder=z))
         if texto:
-            ax.text(xn + wn/2, yn + hn/2, texto, ha='center', va='center', rotation=normalizar_rotacion(rotn), fontsize=font, color=txt_col, weight=weight, zorder=10)
+            ax.text(x + w/2, y + h/2, texto, ha='center', va='center', rotation=normalizar_rotacion(rot), fontsize=font, color=txt_col, weight=weight, zorder=10)
         return w, h
 
     # Lienzo Base
-    ax.add_patch(patches.Rectangle((0, 0), ancho_real, largo_real, fill=False, ec='black', lw=4, zorder=10))
+    ax.add_patch(patches.Rectangle((0, 0), W, L, fill=False, ec='black', lw=4, zorder=10))
     area_total = W * L
 
     # ==========================================
@@ -126,7 +111,7 @@ def dibujar_layout_oxxo_v21(conf):
         
         # Puerta de Bodega (90cm deslizable)
         pos_pb = conf['pos_puerta_bod']
-        muro_pb = conf['muro_puerta_bod'] # N, S, E, O
+        muro_pb = conf['muro_puerta_bod']
         if muro_pb == 'Sur': registrar_obj(xb + pos_pb, yb, 0.9, 0.2, 'brown', name="Pta Bodega")
         elif muro_pb == 'Norte': registrar_obj(xb + pos_pb, yb + h_b - 0.2, 0.9, 0.2, 'brown', name="Pta Bodega")
         elif muro_pb == 'Oeste': registrar_obj(xb, yb + pos_pb, 0.2, 0.9, 'brown', name="Pta Bodega")
@@ -146,8 +131,7 @@ def dibujar_layout_oxxo_v21(conf):
         registrar_obj(xp, yp, w_puerta, h_puerta, 'red', "ACCESO", font=5, txt_col='white', weight='bold', name="Acceso", z=11)
         
         # Descompresión
-        xn, yn, _, _, _ = trans(xp - 2.0, yp - 2.0, 4.0, 4.0, 0)
-        ax.add_patch(patches.Circle((xn + 2.0, yn + 2.0), 2.0, color='#85C1E9', alpha=0.2, zorder=1))
+        ax.add_patch(patches.Circle((xp + w_puerta/2, yp + h_puerta/2), 2.0, color='#85C1E9', alpha=0.2, zorder=1))
 
         if conf['t_pasillos']:
             wpod = conf['pas_poder']
@@ -212,7 +196,7 @@ def dibujar_layout_oxxo_v21(conf):
             
         else: # Escuadra Separada Lado 1 y Lado 2
             w1, w2 = conf['ptas_frio_1'] * MOD_2FT, conf['ptas_frio_2'] * MOD_2FT
-            if rot_f == 0: # L típica
+            if rot_f == 0: 
                 registrar_obj(xf, yf, w1, PROF_FRIO, '#AED6F1', "FRIO L1", name="Frio 1")
                 registrar_obj(xf, yf + PROF_FRIO, PROF_FRIO, w2, '#AED6F1', "FRIO L2", rot=90, name="Frio 2")
             elif rot_f == 90:
@@ -310,7 +294,7 @@ def dibujar_layout_oxxo_v21(conf):
     pct_nav = 100 - pct_exh
     
     ax.set_aspect('equal')
-    plt.title(f"Store Planning OXXO V21.1 | Formato: {clasificar_formato(area_total)}")
+    plt.title(f"Store Planning OXXO V21.2 | Formato: {clasificar_formato(area_total)}")
     return fig, errores, pct_exh, pct_nav, area_total, area_comercial, a_op
 
 # --- INTERFAZ STREAMLIT ---
