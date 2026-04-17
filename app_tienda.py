@@ -164,7 +164,7 @@ def dibujar_layout_v7(conf):
         
         # Dibujar "Pasillo entre Góndolas" si corresponde
         if colocado:
-            ax.add_patch(patches.Rectangle((x_g - PASILLO_STD if x_g < x_puerta else x_g + GONDOLA_PROF), y_inicio_gondolas, PASILLO_STD, largo_total_tren, color='#EBEDEF', alpha=0.5))
+            ax.add_patch(patches.Rectangle(((x_g - PASILLO_STD if x_g < x_puerta else x_g + GONDOLA_PROF), y_inicio_gondolas), PASILLO_STD, largo_total_tren, color='#EBEDEF', alpha=0.5))
             
         trenes_colocados += 1
 
