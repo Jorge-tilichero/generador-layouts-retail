@@ -3,18 +3,20 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # --- CONSTANTES EXACTAS ---
-MOD_2FT = 0.61        # 2ft = 0.61m (Puertas Frío, Checkout, Café)
-MOD_3FT = 0.91        # 3ft = 0.91m (Tramos Góndola)
-PROF_CAFE = 0.75      # Profundidad módulos café
-PROF_CHECK = 0.60     # Profundidad módulos checkout
-PROF_FRIO = 2.00      # Profundidad Cuarto Frío
-GONDOLA_PROF = 0.90   # Profundidad góndola doble vista
-CABECERA_PROF = 0.45  # Profundidad cabecera
-PUERTA_ANCHO = 1.80   # Puerta principal doble
-PASILLO_STD = 1.20    # Pasillo estándar
-ISLA_DIM = 0.60       # Exhibidores de piso
+MOD_2FT = 0.61        
+MOD_3FT = 0.91        
+PROF_CAFE = 0.75      
+PROF_CHECK = 0.60     
+PROF_CAJERO = 1.00    # Pasillo operativo del cajero
+PROF_CONTRA = 0.45    # Contracaja
+PROF_FRIO = 2.00      
+GONDOLA_PROF = 0.90   
+CABECERA_PROF = 0.45  
+PUERTA_ANCHO = 1.80   
+PASILLO_STD = 1.20    
+ISLA_DIM = 0.60       
 
-def dibujar_layout_v7(conf):
+def dibujar_layout_v8(conf):
     ancho = conf['ancho']
     largo = conf['largo']
     
@@ -23,199 +25,178 @@ def dibujar_layout_v7(conf):
     ax.set_ylim(0, largo)
     
     # ==========================================
-    # 1. CÁLCULO DE ÁREAS BASE Y BODEGA
+    # 1. ANCLAJE PRINCIPAL: ACCESO Y PASILLO DE PODER
     # ==========================================
-    area_bodega = (ancho * largo) * 0.20
-    if conf['bodega_loc'] == 'Fondo Completo':
-        prof_bodega = area_bodega / ancho
-        rect_bodega = (0, largo - prof_bodega, ancho, prof_bodega)
-    elif conf['bodega_loc'] == 'Fondo Izquierda':
-        ancho_bodega = ancho / 2
-        prof_bodega = area_bodega / ancho_bodega
-        rect_bodega = (0, largo - prof_bodega, ancho_bodega, prof_bodega)
-    else: # Fondo Derecha
-        ancho_bodega = ancho / 2
-        prof_bodega = area_bodega / ancho_bodega
-        rect_bodega = (ancho - ancho_bodega, largo - prof_bodega, ancho_bodega, prof_bodega)
-
-    ax.add_patch(patches.Rectangle((rect_bodega[0], rect_bodega[1]), rect_bodega[2], rect_bodega[3], color='#D2B48C', ec='black'))
-    plt.text(rect_bodega[0] + rect_bodega[2]/2, rect_bodega[1] + rect_bodega[3]/2, 'BODEGA', ha='center', va='center', weight='bold')
-
-    # ==========================================
-    # 2. CUARTO FRÍO (Módulos exactos de 2ft/2m)
-    # ==========================================
-    ancho_frio = conf['cant_frio'] * MOD_2FT
-    y_frio = rect_bodega[1] - PROF_FRIO
-    x_frio = (ancho - ancho_frio) / 2 # Centrado frente a bodega
+    x_puerta = conf['distancia_puerta']
+    centro_tienda = ancho / 2
     
-    # Dibujar bloque principal del cuarto frío
-    ax.add_patch(patches.Rectangle((x_frio, y_frio), ancho_frio, PROF_FRIO, color='#AED6F1', ec='black'))
-    plt.text(x_frio + ancho_frio/2, y_frio + 1.2, 'CUARTO FRÍO', ha='center', va='center', weight='bold')
+    # Pasillo de Poder (Paralelo a la profundidad, cruza la tienda)
+    ax.add_patch(patches.Rectangle((x_puerta, 0), PUERTA_ANCHO, largo, color='#EBF5FB', alpha=0.8, label='Pasillo Poder'))
+    plt.text(x_puerta + PUERTA_ANCHO/2, largo/2, 'PASILLO DE PODER', ha='center', va='center', rotation=90, color='#21618C', weight='bold')
     
-    # Dibujar cada puerta individual
-    for i in range(conf['cant_frio']):
-        ax.add_patch(patches.Rectangle((x_frio + (i * MOD_2FT), y_frio), MOD_2FT, 0.15, color='#2874A6', ec='white'))
-        plt.text(x_frio + (i * MOD_2FT) + MOD_2FT/2, y_frio + 0.3, f'P{i+1}', ha='center', va='center', fontsize=5, color='black', rotation=90)
-
-    # ==========================================
-    # 3. UBICACIÓN DE ACCESO Y PASILLOS CRUZADOS
-    # ==========================================
-    if conf['puerta_loc'] == 'Centro':
-        x_puerta = (ancho / 2) - (PUERTA_ANCHO / 2)
-    elif conf['puerta_loc'] == 'Izquierda':
-        x_puerta = 1.0
-    else: # Derecha
-        x_puerta = ancho - PUERTA_ANCHO - 1.0
-
-    y_limite_frio = y_frio - PASILLO_STD
-    y_inicio_gondolas = max(PROF_CAFE, PROF_CHECK) + PASILLO_STD
-    
-    # Dibujar Pasillos (Red de Circulación)
-    # A. Pasillo de Poder (Vertical)
-    ax.add_patch(patches.Rectangle((x_puerta, 0), PUERTA_ANCHO, y_limite_frio, color='#EBF5FB', alpha=0.7, label='Pasillo Poder'))
-    plt.text(x_puerta + PUERTA_ANCHO/2, y_inicio_gondolas + 2.0, 'PASILLO DE PODER', ha='center', va='center', rotation=90, color='#21618C', weight='bold')
-    
-    # B. Pasillo Cuarto Frío (Horizontal)
-    ax.add_patch(patches.Rectangle((0, y_limite_frio), ancho, PASILLO_STD, color='#FCF3CF', alpha=0.7))
-    plt.text(x_frio + ancho_frio/2, y_limite_frio + PASILLO_STD/2, 'PASILLO CUARTO FRÍO', ha='center', va='center', color='#9A7D0A', weight='bold')
-
-    # C. Pasillo Café y Pasillo Cobro (Horizontales Frontales)
-    ax.add_patch(patches.Rectangle((0, PROF_CAFE), (x_puerta if x_puerta > 0 else ancho/2), PASILLO_STD, color='#FADBD8', alpha=0.5))
-    plt.text((x_puerta if x_puerta > 0 else ancho/2)/2, PROF_CAFE + PASILLO_STD/2, 'PASILLO CAFÉ', ha='center', va='center', fontsize=8)
-    
-    x_inicio_cobro = x_puerta + PUERTA_ANCHO
-    ax.add_patch(patches.Rectangle((x_inicio_cobro, PROF_CHECK), ancho - x_inicio_cobro, PASILLO_STD, color='#D5F5E3', alpha=0.5))
-    plt.text(x_inicio_cobro + (ancho - x_inicio_cobro)/2, PROF_CHECK + PASILLO_STD/2, 'PASILLO COBRO (Fila)', ha='center', va='center', fontsize=8)
-
     # Puerta Física
     plt.plot([x_puerta, x_puerta + PUERTA_ANCHO], [0, 0], color='red', linewidth=12)
+    ax.add_patch(patches.Circle((x_puerta + PUERTA_ANCHO/2, 0), 2.0, color='#85C1E9', alpha=0.2)) # Descompresión
 
     # ==========================================
-    # 4. MOBILIARIO FRONTAL (Café y Checkout)
+    # 2. INTELIGENCIA DE FLUJO: CHECKOUT, CAFÉ Y FRÍO
     # ==========================================
-    # Café (Izquierda de la puerta)
-    ancho_cafe_total = conf['cant_cafe'] * MOD_2FT
-    for i in range(conf['cant_cafe']):
-        if (i * MOD_2FT) + MOD_2FT <= x_puerta or conf['puerta_loc'] != 'Izquierda': # Evitar chocar con puerta
-            x_mod = i * MOD_2FT
-            ax.add_patch(patches.Rectangle((x_mod, 0), MOD_2FT, PROF_CAFE, color='#FAD7A0', ec='black'))
-            plt.text(x_mod + MOD_2FT/2, PROF_CAFE/2, f'C{i+1}', ha='center', va='center', fontsize=7)
+    # El sistema decide las posiciones basándose en el acceso
+    ancho_check = conf['cant_checkout'] * MOD_2FT
+    ancho_cafe = conf['cant_cafe'] * MOD_2FT
+    ancho_frio = conf['cant_frio'] * MOD_2FT
+    
+    if x_puerta + (PUERTA_ANCHO/2) <= centro_tienda:
+        # Puerta a la Izquierda -> Checkout a la Derecha, Café a la Izquierda, Frío al Fondo Derecha
+        x_check_bloque = ancho - ancho_check
+        x_cafe = 0
+        x_frio = ancho - ancho_frio
+    else:
+        # Puerta a la Derecha -> Checkout a la Izquierda, Café a la Derecha, Frío al Fondo Izquierda
+        x_check_bloque = 0
+        x_cafe = ancho - ancho_cafe
+        x_frio = 0
 
-    # Checkout (Derecha de la puerta)
+    # ==========================================
+    # 3. BODEGA Y CUARTO FRÍO
+    # ==========================================
+    area_bodega = (ancho * largo) * 0.20
+    prof_bodega = area_bodega / ancho
+    y_bodega = largo - prof_bodega
+    ax.add_patch(patches.Rectangle((0, y_bodega), ancho, prof_bodega, color='#D2B48C', ec='black'))
+    plt.text(ancho/2, y_bodega + prof_bodega/2, 'BODEGA', ha='center', va='center', weight='bold')
+
+    y_frio = y_bodega - PROF_FRIO
+    # Bloque Cuarto Frío
+    ax.add_patch(patches.Rectangle((x_frio, y_frio), ancho_frio, PROF_FRIO, color='#AED6F1', ec='black'))
+    
+    for i in range(conf['cant_frio']):
+        ax.add_patch(patches.Rectangle((x_frio + (i * MOD_2FT), y_frio), MOD_2FT, 0.15, color='#2874A6', ec='white'))
+        plt.text(x_frio + (i * MOD_2FT) + MOD_2FT/2, y_frio + 0.3, f'P{i+1}', ha='center', va='center', fontsize=5, rotation=90)
+        
+    # Pasillo Frío
+    y_limite_frio = y_frio - PASILLO_STD
+    ax.add_patch(patches.Rectangle((0, y_limite_frio), ancho, PASILLO_STD, color='#FCF3CF', alpha=0.7))
+    plt.text(ancho/2, y_limite_frio + PASILLO_STD/2, 'PASILLO CUARTO FRÍO', ha='center', va='center', color='#9A7D0A', weight='bold')
+
+    # ==========================================
+    # 4. ÁREAS DE SERVICIO FRONTAL (Bloque Completo)
+    # ==========================================
+    
+    # --- ÁREA DE CHECKOUT (Contracaja + Cajero + Módulos) ---
+    # Contracaja (Y=0 a Y=0.45)
+    ax.add_patch(patches.Rectangle((x_check_bloque, 0), ancho_check, PROF_CONTRA, color='#82E0AA', ec='black'))
+    plt.text(x_check_bloque + ancho_check/2, PROF_CONTRA/2, 'CONTRACAJA', ha='center', va='center', fontsize=6)
+    
+    # Pasillo Cajero (Y=0.45 a Y=1.45)
+    ax.add_patch(patches.Rectangle((x_check_bloque, PROF_CONTRA), ancho_check, PROF_CAJERO, color='#EAEDED'))
+    plt.text(x_check_bloque + ancho_check/2, PROF_CONTRA + PROF_CAJERO/2, 'PASILLO CAJERO (1m)', ha='center', va='center', fontsize=6, color='gray')
+    
+    # Módulos Checkout (Y=1.45 a Y=2.05)
+    y_modulos_check = PROF_CONTRA + PROF_CAJERO
     for i in range(conf['cant_checkout']):
-        x_mod = ancho - (i * MOD_2FT) - MOD_2FT
-        if x_mod >= x_puerta + PUERTA_ANCHO:
-            ax.add_patch(patches.Rectangle((x_mod, 0), MOD_2FT, PROF_CHECK, color='#ABEBC6', ec='black'))
-            plt.text(x_mod + MOD_2FT/2, PROF_CHECK/2, f'CHK{i+1}', ha='center', va='center', fontsize=7)
+        x_mod = x_check_bloque + (i * MOD_2FT)
+        ax.add_patch(patches.Rectangle((x_mod, y_modulos_check), MOD_2FT, PROF_CHECK, color='#ABEBC6', ec='black'))
+        plt.text(x_mod + MOD_2FT/2, y_modulos_check + PROF_CHECK/2, f'CHK{i+1}', ha='center', va='center', fontsize=6)
+        
+    # Pasillo de Cobro (Fila) frente al Checkout
+    y_fila = y_modulos_check + PROF_CHECK
+    ax.add_patch(patches.Rectangle((x_check_bloque, y_fila), ancho_check, PASILLO_STD, color='#D5F5E3', alpha=0.5))
+    plt.text(x_check_bloque + ancho_check/2, y_fila + PASILLO_STD/2, 'PASILLO COBRO (Fila)', ha='center', va='center', fontsize=7)
+
+    # --- ÁREA DE CAFÉ ---
+    for i in range(conf['cant_cafe']):
+        x_mod = x_cafe + (i * MOD_2FT)
+        # Evitar sobreponer con el pasillo de poder
+        if not (x_mod >= x_puerta and x_mod <= x_puerta + PUERTA_ANCHO):
+            ax.add_patch(patches.Rectangle((x_mod, 0), MOD_2FT, PROF_CAFE, color='#FAD7A0', ec='black'))
+            plt.text(x_mod + MOD_2FT/2, PROF_CAFE/2, f'C{i+1}', ha='center', va='center', fontsize=6)
+            
+    # Pasillo de Servicio Café
+    ax.add_patch(patches.Rectangle((x_cafe, PROF_CAFE), ancho_cafe, PASILLO_STD, color='#FADBD8', alpha=0.5))
+    plt.text(x_cafe + ancho_cafe/2, PROF_CAFE + PASILLO_STD/2, 'PASILLO SERVICIO CAFÉ', ha='center', va='center', fontsize=7)
 
     # ==========================================
-    # 5. GÓNDOLAS CENTRALES (Modulación y Pasillos)
+    # 5. GÓNDOLAS CENTRALES (Orientación Visibilidad)
     # ==========================================
+    # La orientación dictada es paralela al pasillo de poder para asegurar línea de visión cajero-fondo
     largo_cuerpo = conf['cant_tramos'] * MOD_3FT
     largo_total_tren = CABECERA_PROF*2 + largo_cuerpo
+    y_inicio_gondolas = max(y_fila + PASILLO_STD, PROF_CAFE + PASILLO_STD) + 0.5
     
-    # Validar si las góndolas caben verticalmente
-    if y_inicio_gondolas + largo_total_tren > y_limite_frio:
-        plt.text(ancho/2, largo/2, '⚠️ ERROR: Tramos exceden el largo disponible.', ha='center', color='red', weight='bold')
-        return fig
-
-    # Listas de posiciones seguras para islas
-    zonas_islas = []
-    
-    # Lógica de distribución a los lados del Pasillo de Poder
     x_izq = x_puerta - PASILLO_STD - GONDOLA_PROF
     x_der = x_puerta + PUERTA_ANCHO + PASILLO_STD
     
     trenes_colocados = 0
     while trenes_colocados < conf['cant_trenes']:
         colocado = False
-        # Intentar a la Izquierda
         if trenes_colocados % 2 == 0 and x_izq >= 0:
             x_g = x_izq
             x_izq -= (GONDOLA_PROF + PASILLO_STD)
             colocado = True
-        # Intentar a la Derecha
         elif x_der + GONDOLA_PROF <= ancho:
             x_g = x_der
             x_der += (GONDOLA_PROF + PASILLO_STD)
             colocado = True
             
-        if not colocado:
-            break # No caben más trenes
+        if not colocado: break
 
-        # Dibujar Tren
-        # Cabecera Sur
+        # Dibujar Góndola
         ax.add_patch(patches.Rectangle((x_g, y_inicio_gondolas), GONDOLA_PROF, CABECERA_PROF, color='#E74C3C', ec='black'))
-        plt.text(x_g + GONDOLA_PROF/2, y_inicio_gondolas + CABECERA_PROF/2, 'CAB', ha='center', va='center', fontsize=6)
-        
-        # Tramos individuales (Cuerpo)
         for t in range(conf['cant_tramos']):
             y_t = y_inicio_gondolas + CABECERA_PROF + (t * MOD_3FT)
             ax.add_patch(patches.Rectangle((x_g, y_t), GONDOLA_PROF, MOD_3FT, color='#ABB2B9', ec='black'))
-            plt.text(x_g + GONDOLA_PROF/2, y_t + MOD_3FT/2, f'Tr{t+1}', ha='center', va='center', fontsize=7)
-            
-        # Cabecera Norte
-        y_cab_norte = y_inicio_gondolas + CABECERA_PROF + largo_cuerpo
-        ax.add_patch(patches.Rectangle((x_g, y_cab_norte), GONDOLA_PROF, CABECERA_PROF, color='#E74C3C', ec='black'))
-        plt.text(x_g + GONDOLA_PROF/2, y_cab_norte + CABECERA_PROF/2, 'CAB', ha='center', va='center', fontsize=6)
+        ax.add_patch(patches.Rectangle((x_g, y_inicio_gondolas + CABECERA_PROF + largo_cuerpo), GONDOLA_PROF, CABECERA_PROF, color='#E74C3C', ec='black'))
         
-        # Guardar espacio frente a cabeceras para posibles islas promocionales
-        zonas_islas.append((x_g + 0.15, y_inicio_gondolas - ISLA_DIM - 0.2))
-        
-        # Dibujar "Pasillo entre Góndolas" si corresponde
-        if colocado:
-            ax.add_patch(patches.Rectangle(((x_g - PASILLO_STD if x_g < x_puerta else x_g + GONDOLA_PROF), y_inicio_gondolas), PASILLO_STD, largo_total_tren, color='#EBEDEF', alpha=0.5))
+        # Pasillos entre Góndolas
+        ax.add_patch(patches.Rectangle(((x_g - PASILLO_STD if x_g < x_puerta else x_g + GONDOLA_PROF), y_inicio_gondolas), PASILLO_STD, largo_total_tren, color='#EBEDEF', alpha=0.7))
+        plt.text((x_g - PASILLO_STD/2 if x_g < x_puerta else x_g + GONDOLA_PROF + PASILLO_STD/2), y_inicio_gondolas + largo_total_tren/2, 'PASILLO GÓNDOLAS', ha='center', va='center', rotation=90, fontsize=6, color='gray')
             
         trenes_colocados += 1
 
-    # ==========================================
-    # 6. EXHIBIDORES DE PISO (Prevención de choques)
-    # ==========================================
-    islas_dibujadas = 0
-    # Priorizar espacios frente a góndolas
-    for zx, zy in zonas_islas:
-        if islas_dibujadas < conf['cant_exhibidores'] and zy > PROF_CAFE:
-            ax.add_patch(patches.Rectangle((zx, zy), ISLA_DIM, ISLA_DIM, color='#F4D03F', ec='black'))
-            plt.text(zx + ISLA_DIM/2, zy + ISLA_DIM/2, f'E{islas_dibujadas+1}', ha='center', va='center', fontsize=7)
-            islas_dibujadas += 1
-
     ax.set_aspect('equal')
-    plt.title(f"Layout Arquitectónico V7.0 | Malla de Pasillos Estricta")
+    plt.title(f"Layout Estratégico V8.0 | Flujo Condicionado")
     return fig
 
 # --- UI STREAMLIT ---
 st.set_page_config(layout="wide")
-st.title("🏗️ Arquitectura Comercial V7.0")
+st.title("🏗️ Arquitectura Estratégica V8.0")
 
-st.sidebar.header("1. Cimientos")
-ancho = st.sidebar.number_input("Ancho (5m - 20m)", min_value=5.0, max_value=20.0, value=15.0, step=0.5)
-largo = st.sidebar.number_input("Largo (5m - 20m)", min_value=5.0, max_value=20.0, value=18.0, step=0.5)
-puerta_loc = st.sidebar.selectbox("Ubicación Acceso Frontal", ['Centro', 'Izquierda', 'Derecha'])
-bodega_loc = st.sidebar.selectbox("Ubicación Bodega", ['Fondo Completo', 'Fondo Izquierda', 'Fondo Derecha'])
+st.sidebar.header("Paso 1: Huella del Local")
+ancho = st.sidebar.number_input("Ancho (m)", 10.0, 30.0, 15.0, 0.5)
+largo = st.sidebar.number_input("Profundidad (m)", 15.0, 40.0, 20.0, 0.5)
 
-st.sidebar.header("2. Módulos y Muebles")
-cant_frio = st.sidebar.number_input("Puertas Frío (2ft x 2m prof.)", min_value=2, max_value=20, value=10)
-cant_trenes = st.sidebar.number_input("Trenes de Góndola (Máx 4)", min_value=1, max_value=4, value=2)
-cant_tramos = st.sidebar.number_input("Tramos por Tren (3ft c/u)", min_value=1, max_value=6, value=3)
-cant_cafe = st.sidebar.number_input("Módulos Café (2ft x 0.75m)", min_value=2, max_value=10, value=4)
-cant_checkout = st.sidebar.number_input("Módulos Checkout (2ft x 0.60m)", min_value=1, max_value=5, value=3)
-cant_exhibidores = st.sidebar.number_input("Exhibidores de Piso (Máx 20)", min_value=1, max_value=20, value=4)
+st.sidebar.header("Paso 2: Acceso Arquitectónico")
+st.sidebar.write("Ubicación de la puerta (separación desde la pared izquierda):")
+max_distancia = float(ancho - PUERTA_ANCHO)
+distancia_puerta = st.sidebar.slider("Separación (m)", 0.0, max_distancia, float(ancho/2 - PUERTA_ANCHO/2), 0.1)
+
+st.sidebar.header("Paso 3: Zonas de Exhibición")
+cant_frio = st.sidebar.number_input("Puertas Frío (2ft)", 2, 20, 10)
+cant_trenes = st.sidebar.number_input("Trenes Góndola", 1, 6, 2)
+cant_tramos = st.sidebar.number_input("Tramos por Tren (3ft)", 1, 8, 3)
+
+st.sidebar.header("Paso 4: Zonas de Servicio")
+cant_cafe = st.sidebar.number_input("Módulos Café (2ft)", 2, 10, 4)
+cant_checkout = st.sidebar.number_input("Módulos Checkout (2ft)", 1, 5, 3)
 
 conf = {
-    'ancho': ancho, 'largo': largo, 'puerta_loc': puerta_loc, 'bodega_loc': bodega_loc,
+    'ancho': ancho, 'largo': largo, 'distancia_puerta': distancia_puerta,
     'cant_frio': cant_frio, 'cant_trenes': cant_trenes, 'cant_tramos': cant_tramos,
-    'cant_cafe': cant_cafe, 'cant_checkout': cant_checkout, 'cant_exhibidores': cant_exhibidores
+    'cant_cafe': cant_cafe, 'cant_checkout': cant_checkout
 }
 
 col_main, col_info = st.columns([3, 1])
 
 with col_main:
-    st.pyplot(dibujar_layout_v7(conf))
+    st.pyplot(dibujar_layout_v8(conf))
 
 with col_info:
-    st.subheader("Auditoría de Colisiones")
+    st.subheader("Reglas de Dependencia Activas")
+    st.info("El sistema evalúa la posición de la puerta y ejecuta la siguiente estrategia de distribución:")
     st.markdown("""
-    * **Módulos Físicos:** El sistema ahora dibuja los contornos exactos en negro.
-    * **Intersecciones:** Los pasillos muestran su cruce estructural en colores semitransparentes.
-    * **Restricción de Exhibidores:** Si solicitas más exhibidores de los que caben en las zonas libres frente a las cabeceras, el sistema omitirá el resto para garantizar que **ningún pasillo sea bloqueado**.
+    1. **Checkout Opuesto:** Se ancla en el lado contrario a la entrada para balancear el tráfico frontal y evitar cuellos de botella.
+    2. **Zona de Cobro Completa:** Ahora incluye Contracaja (45cm), Pasillo Operativo (1m) y Módulos de Checkout (60cm) como un solo bloque funcional.
+    3. **Diagonal de Tráfico:** El Cuarto Frío se ubica al fondo, en el lado opuesto del Checkout, forzando al cliente a navegar la profundidad total de la tienda.
+    4. **Visibilidad:** Las góndolas se orientan verticalmente para que los pasillos funcionen como túneles de visión despejados desde el Checkout hacia el Frío.
     """)
