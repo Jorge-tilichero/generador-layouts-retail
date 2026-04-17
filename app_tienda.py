@@ -204,10 +204,10 @@ def dibujar_layout_oxxo_v21(conf):
             wf = conf['cant_frio'] * MOD_2FT
             if rot_f in [0, 180]:
                 registrar_obj(xf, yf, wf, PROF_FRIO, '#AED6F1', "CUARTO FRÍO", weight='bold', name="Frio")
-                if conf['t_pasillos']: registrar_obj(xf, yf - PASILLO_STD if rot_f==0 else yf + PROF_FRIO, wf, PASILLO_STD, '#FCF3CF', "PASILLO FRÍO", alpha=0.6, tipo="Pasillo", name="Pasillo Frio")
+                if conf['t_pasillos']: registrar_obj(xf, yf - PASILLO_STD if rot_f==0 else yf + PROF_FRIO, wf, PASILLO_STD, '#FCF3CF', "PASILLO FRÍO", alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
             else:
                 registrar_obj(xf, yf, PROF_FRIO, wf, '#AED6F1', "CUARTO FRÍO", rot=90, weight='bold', name="Frio")
-                if conf['t_pasillos']: registrar_obj(xf - PASILLO_STD if rot_f==90 else xf + PROF_FRIO, yf, PASILLO_STD, wf, '#FCF3CF', "PASILLO FRÍO", rot=90, alpha=0.6, tipo="Pasillo", name="Pasillo Frio")
+                if conf['t_pasillos']: registrar_obj(xf - PASILLO_STD if rot_f==90 else xf + PROF_FRIO, yf, PASILLO_STD, wf, '#FCF3CF', "PASILLO FRÍO", rot=90, alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
             area_exh += (wf * PROF_FRIO)
             
         else: # Escuadra Separada Lado 1 y Lado 2
@@ -234,12 +234,13 @@ def dibujar_layout_oxxo_v21(conf):
         mods = conf['cant_cafe']
         if conf['forma_cafe'] == 'Lineal':
             for i in range(mods): registrar_obj(x_c + (i*MOD_2FT), y_c, MOD_2FT, PROF_CAFE, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
-            if conf['t_pasillos']: registrar_obj(x_c, y_c + PROF_CAFE, mods*MOD_2FT, PASILLO_STD, '#FADBD8', "PASILLO CAFE", alpha=0.5, tipo="Pasillo", name="Pasillo Cafe")
+            if conf['t_pasillos']: registrar_obj(x_c, y_c + PROF_CAFE, mods*MOD_2FT, PASILLO_STD, '#FADBD8', "PASILLO CAFE", alpha=0.5, tipo="Pasillo", name="Pasillo Cafe", txt_col='#E74C3C')
             area_exh += (mods * MOD_2FT * PROF_CAFE)
         else: # Escuadra
             mods_x, mods_y = int(mods / 2), mods - int(mods/2)
             registrar_obj(x_c, y_c, mods_x*MOD_2FT, PROF_CAFE, '#FAD7A0', "CAFE H", name="Cafe Horiz")
             registrar_obj(x_c, y_c + PROF_CAFE, PROF_CAFE, mods_y*MOD_2FT, '#FAD7A0', "CAFE V", rot=90, name="Cafe Vert")
+            registrar_obj(x_c, y_c, PROF_CAFE, PROF_CAFE, '#E59866', "X", name="Cafe Pivote") # Pivote
             area_exh += (mods * MOD_2FT * PROF_CAFE)
 
     # ==========================================
@@ -309,11 +310,14 @@ def dibujar_layout_oxxo_v21(conf):
     pct_nav = 100 - pct_exh
     
     ax.set_aspect('equal')
-    plt.title(f"Store Planning OXXO V21.0 | Formato: {clasificar_formato(area_total)}")
+    plt.title(f"Store Planning OXXO V21.1 | Formato: {clasificar_formato(area_total)}")
     return fig, errores, pct_exh, pct_nav, area_total, area_comercial, a_op
 
 # --- INTERFAZ STREAMLIT ---
 st.set_page_config(layout="wide")
+
+# IMPORTANTE: Inicializar `conf` antes de llenar datos en los menús
+conf = {}
 
 with st.sidebar:
     st.title("🏬 Store Planning OXXO")
@@ -353,6 +357,9 @@ with col_info:
     with st.expander("2. Bodega Operativa", expanded=False):
         t_bodega = st.checkbox("Habilitar Bodega", value=True)
         loc_bodega = st.selectbox("Ubicación", ['Fondo (Norte)', 'Frente (Sur)', 'Lateral Izq (Oeste)', 'Lateral Der (Este)'])
+        col_bx, col_by = st.columns(2)
+        x_bodega = col_bx.number_input("Posición Bodega X", 0.0, 20.0, 0.0, 0.1)
+        y_bodega = col_by.number_input("Posición Bodega Y", 0.0, 20.0, float(largo) - float((ancho*largo*0.2)/ancho), 0.1)
         col_w, col_h = st.columns(2)
         w_bodega = col_w.number_input("Ancho Bodega", 1.0, 20.0, float(ancho), 0.1)
         h_bodega = col_h.number_input("Largo Bodega", 1.0, 20.0, float((ancho*largo*0.2)/ancho), 0.1)
@@ -434,7 +441,7 @@ with col_info:
 conf.update({
     'ancho': ancho, 'largo': largo, 
     't_puerta': t_puerta, 'tipo_puerta': tipo_puerta, 'muro_puerta': muro_puerta, 'pos_puerta_x': pos_puerta_x, 'pos_puerta_y': pos_puerta_y,
-    't_bodega': t_bodega, 'loc_bodega': loc_bodega, 'w_bodega': w_bodega if t_bodega else 0, 'h_bodega': h_bodega if t_bodega else 0, 'pas_bod': pas_bod, 'muro_puerta_bod': muro_puerta_bod, 'pos_puerta_bod': pos_puerta_bod,
+    't_bodega': t_bodega, 'loc_bodega': loc_bodega, 'x_bodega': x_bodega if t_bodega else 0, 'y_bodega': y_bodega if t_bodega else 0, 'w_bodega': w_bodega if t_bodega else 0, 'h_bodega': h_bodega if t_bodega else 0, 'pas_bod': pas_bod, 'muro_puerta_bod': muro_puerta_bod, 'pos_puerta_bod': pos_puerta_bod,
     't_pasillos': t_pasillos, 'pas_poder': pas_poder, 'pas_peri': pas_peri,
     't_check': t_check, 'rot_check': rot_check, 'cant_check': cant_check, 'pos_chk_x': pos_chk_x, 'pos_chk_y': pos_chk_y,
     't_frio': t_frio, 'forma_frio': forma_frio, 'rot_frio': rot_frio, 'cant_frio': cant_frio if forma_frio=='Lineal' else 0, 'ptas_frio_1': ptas_frio_1 if forma_frio=='Escuadra' else 0, 'ptas_frio_2': ptas_frio_2 if forma_frio=='Escuadra' else 0, 'pos_frio_x': pos_frio_x, 'pos_frio_y': pos_frio_y,
