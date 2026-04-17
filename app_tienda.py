@@ -16,6 +16,8 @@ PROF_PERIMETRO = 0.45
 GONDOLA_PROF = 0.90   
 CABECERA_PROF = 0.45  
 ISLA_DIM = 0.60
+PUERTA_ANCHO = 1.80   # ¡CORREGIDO Y RESTAURADO!
+PASILLO_STD = 1.20    # ¡CORREGIDO Y RESTAURADO!
 
 # --- CLASIFICADOR DE MATRIZ DE FORMATOS OXXO ---
 def clasificar_formato(m2):
@@ -148,6 +150,13 @@ def dibujar_layout_oxxo_v20(conf):
             registrar_obj(xc, yc + PASILLO_STD + PROF_CHECK, w_chk, PROF_CAJERO, '#EAEDED', "P. CAJERO (1m)", name="Pasillo Cajero")
             registrar_obj(xc, yc + PASILLO_STD + PROF_CHECK + PROF_CAJERO, w_chk, PROF_CONTRA, '#82E0AA', "C.CAJA", name="Contracaja")
             area_exh += (w_chk * PROF_CHECK)
+            
+        elif rot_c == 270: # Frente al Oeste
+            if conf['t_pasillos']: registrar_obj(xc, yc, PASILLO_STD, w_chk, '#D5F5E3', "PASILLO COBRO", rot=90, alpha=0.5, is_obs=True, name="Pasillo Cobro")
+            for i in range(mods_chk): registrar_obj(xc + PASILLO_STD, yc + (i*MOD_2FT), PROF_CHECK, MOD_2FT, '#ABEBC6', f"CHK{i+1}", font=5, rot=90, name=f"Modulo CHK{i+1}")
+            registrar_obj(xc + PASILLO_STD + PROF_CHECK, yc, PROF_CAJERO, w_chk, '#EAEDED', "P. CAJERO", rot=90, name="Pasillo Cajero")
+            registrar_obj(xc + PASILLO_STD + PROF_CHECK + PROF_CAJERO, yc, PROF_CONTRA, w_chk, '#82E0AA', "C.CAJA", rot=90, name="Contracaja")
+            area_exh += (w_chk * PROF_CHECK)
 
     # ==========================================
     # 4. CUARTO FRÍO (Destino 7ft)
@@ -217,14 +226,16 @@ def dibujar_layout_oxxo_v20(conf):
             area_exh += (mods * MOD_2FT * PROF_CAFE)
 
     # ==========================================
-    # 7. PERIMETRALES E ISLAS
+    # 7. PERIMETRALES
     # ==========================================
     if conf['t_perimetral']:
-        # Algoritmo de auto-relleno simplificado
         for y in range(int(L)):
             if not colisiona(0, y, PROF_PERIMETRO, MOD_1FT, obstaculos)[0]: registrar_obj(0, y, PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", font=4, rot=90, name=f"Perim Izq {y}")
             if not colisiona(W - PROF_PERIMETRO, y, PROF_PERIMETRO, MOD_1FT, obstaculos)[0]: registrar_obj(W - PROF_PERIMETRO, y, PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", font=4, rot=90, name=f"Perim Der {y}")
 
+    # ==========================================
+    # 8. ISLAS
+    # ==========================================
     if conf['t_islas']:
         islas_ok = 0
         gx = 2 if conf['grupo_islas'] in ['2x1', '2x2'] else 1
@@ -243,40 +254,43 @@ def dibujar_layout_oxxo_v20(conf):
     pct_nav = 100 - pct_exh
     
     ax.set_aspect('equal')
-    plt.title(f"Store Planning OXXO V20.0 | Formato: {clasificar_formato(area_total)}")
+    plt.title(f"Store Planning OXXO V20.1 | Formato: {clasificar_formato(area_total)}")
     return fig, errores, pct_exh, pct_nav, area_total, area_comercial
 
 # --- INTERFAZ STREAMLIT ---
 st.set_page_config(layout="wide")
 
-# --- DASHBOARD LATERAL ---
+# ==========================================
+# DASHBOARD PERMANENTE (Barra Lateral Superior)
+# ==========================================
 with st.sidebar:
-    st.title("🏬 Store Planning OXXO V20")
-    st.markdown("### 📊 Auditoría Oficial M2")
+    st.title("🏬 Store Planning OXXO")
     
-    ancho = st.number_input("Ancho (m)", 5.0, 20.0, 12.0, 0.5)
-    largo = st.number_input("Profundidad (m)", 5.0, 20.0, 15.0, 0.5)
+    st.markdown("### 📊 Dashboard de M2 y KPIs")
     
-    a_tot = ancho * largo
-    a_op = a_tot * 0.20
-    a_com = a_tot * 0.80
+    ancho = st.number_input("Ancho (m)", 5.0, 20.0, 12.0, 0.5, key='ancho')
+    largo = st.number_input("Profundidad (m)", 5.0, 20.0, 15.0, 0.5, key='largo')
     
-    st.write(f"**Total:** {a_tot:.1f} m² | `{clasificar_formato(a_tot)}`")
-    st.caption(f"80% Comercial ({a_com:.1f} m²) | 20% Operativo ({a_op:.1f} m²)")
+    area_tot = ancho * largo
+    area_op = area_tot * 0.20
+    area_com = area_tot * 0.80
+    
+    st.write(f"**M2 Totales:** {area_tot:.1f} m² | **Formato:** `{clasificar_formato(area_tot)}`")
+    st.caption(f"80% Comercial ({area_com:.1f} m²) | 20% Operativo ({area_op:.1f} m²)")
     
     kpi_col1, kpi_col2 = st.columns(2)
     kpi_exh = kpi_col1.empty()
     kpi_nav = kpi_col2.empty()
     
     st.markdown("---")
-    st.write("🕹️ **Panel de Control Paramétrico**")
+    st.write("🔧 **Módulos Independientes (Activa los necesarios)**")
 
-col_controles, col_plot = st.columns([1.5, 2.5])
+col_info, col_plot = st.columns([1.2, 2.8])
 
-with col_controles:
+with col_info:
     with st.expander("1. Acceso y Puertas", expanded=False):
         t_puerta = st.checkbox("Habilitar Acceso", value=True)
-        tipo_puerta = st.selectbox("Tipo", ['1 Puerta (90cm)', '2 Puertas (180cm)'], index=1)
+        tipo_puerta = st.selectbox("Tipo de Puerta", ['1 Puerta (90cm)', '2 Puertas (180cm)'], index=1)
         muro_puerta = st.selectbox("Muro", ['Sur', 'Norte', 'Este', 'Oeste'])
         pos_puerta_x = st.number_input("Posición X", 0.0, float(ancho), 5.0, 0.1)
         pos_puerta_y = st.number_input("Posición Y (Si está en Este/Oeste)", 0.0, float(largo), 0.0, 0.1)
