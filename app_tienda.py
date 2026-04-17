@@ -41,25 +41,13 @@ def colisiona(x, y, w, h, lista_obstaculos):
             return True, nombre
     return False, ""
 
-# --- MOTOR DE TRANSFORMACIÓN ESPACIAL ---
-def obtener_transformacion(muro, ancho_orig, largo_orig):
-    def transform(x, y, w, h, rot_texto=0):
-        if muro == 'Inferior (Frente)': return x, y, w, h, rot_texto
-        elif muro == 'Lateral Izquierdo': return y, x, h, w, rot_texto - 90
-        elif muro == 'Lateral Derecho': return ancho_orig - y - h, x, h, w, rot_texto + 90
-    return transform
-
 def normalizar_rotacion(r):
     r = r % 360
     if 90 < r < 270: r -= 180
     return r
 
 def dibujar_layout_oxxo_v22(conf):
-    ancho_real, largo_real = conf['ancho'], conf['largo']
-    muro = conf['muro_puerta']
-    
-    if muro == 'Inferior (Frente)': W, L = ancho_real, largo_real
-    else: W, L = largo_real, ancho_real 
+    W, L = conf['ancho'], conf['largo']
 
     fig, ax = plt.subplots(figsize=(12, 12))
     ax.set_xlim(0, W)
@@ -69,8 +57,6 @@ def dibujar_layout_oxxo_v22(conf):
     ax.xaxis.set_major_locator(MultipleLocator(1))
     ax.yaxis.set_major_locator(MultipleLocator(1))
     ax.grid(which='major', color='#E5E7E9', linestyle='-', linewidth=0.5, zorder=0)
-
-    trans = obtener_transformacion(muro, ancho_real, largo_real)
     
     # DOBLE CAPA DE COLISIÓN
     obs_fisicos = []  
@@ -100,14 +86,13 @@ def dibujar_layout_oxxo_v22(conf):
             elif tipo == "Pasillo": obs_pasillos.append((x, y, w, h, name))
             ec, lw = ('black', 1) if tipo == "Fisico" else ('none', 0)
 
-        xn, yn, wn, hn, rotn = trans(x, y, w, h, rot)
-        ax.add_patch(patches.Rectangle((xn, yn), wn, hn, color=color, ec=ec, lw=lw, alpha=alpha, zorder=z))
+        ax.add_patch(patches.Rectangle((x, y), w, h, color=color, ec=ec, lw=lw, alpha=alpha, zorder=z))
         if texto:
-            ax.text(xn + wn/2, yn + hn/2, texto, ha='center', va='center', rotation=normalizar_rotacion(rotn), fontsize=font, color=txt_col, weight=weight, zorder=10)
+            ax.text(x + w/2, y + h/2, texto, ha='center', va='center', rotation=normalizar_rotacion(rot), fontsize=font, color=txt_col, weight=weight, zorder=10)
         return w, h
 
     # Lienzo Base
-    ax.add_patch(patches.Rectangle((0, 0), ancho_real, largo_real, fill=False, ec='black', lw=4, zorder=10))
+    ax.add_patch(patches.Rectangle((0, 0), W, L, fill=False, ec='black', lw=4, zorder=10))
     area_total = W * L
 
     # ==========================================
@@ -144,15 +129,18 @@ def dibujar_layout_oxxo_v22(conf):
         h_puerta = 0.2 if conf['muro_puerta'] in ['Sur', 'Norte'] else pw
         registrar_obj(xp, yp, w_puerta, h_puerta, 'red', "ACCESO", font=5, txt_col='white', weight='bold', name="Acceso", z=11)
         
-        xn, yn, _, _, _ = trans(xp - 2.0, yp - 2.0, 4.0, 4.0, 0)
-        ax.add_patch(patches.Circle((xn + 2.0, yn + 2.0), 2.0, color='#85C1E9', alpha=0.2, zorder=1))
+        ax.add_patch(patches.Circle((xp + w_puerta/2, yp + h_puerta/2), 2.0, color='#85C1E9', alpha=0.2, zorder=1))
 
         if conf['t_pasillos']:
             wpod = conf['pas_poder']
             if conf['muro_puerta'] == 'Sur':
-                registrar_obj(xp - (wpod-pw)/2, yp, wpod, L, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
+                registrar_obj(xp - (wpod-pw)/2, yp, wpod, L - yp, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
             elif conf['muro_puerta'] == 'Norte':
                 registrar_obj(xp - (wpod-pw)/2, 0, wpod, yp, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
+            elif conf['muro_puerta'] == 'Este':
+                registrar_obj(0, yp - (wpod-pw)/2, xp, wpod, '#EBF5FB', "PASILLO DE PODER", alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
+            elif conf['muro_puerta'] == 'Oeste':
+                registrar_obj(xp, yp - (wpod-pw)/2, W - xp, wpod, '#EBF5FB', "PASILLO DE PODER", alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
 
     # ==========================================
     # 3. CHECKOUT
@@ -248,22 +236,22 @@ def dibujar_layout_oxxo_v22(conf):
         w_peri = conf['pas_peri']
         if conf['peri_izq']: 
             for i in range(conf['tramos_izq']): registrar_obj(0, conf['pos_izq_y'] + (i*MOD_1FT), PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", rot=90, font=4, name=f"PIzq{i}")
-            if conf['t_pasillos']: registrar_obj(PROF_PERIMETRO, 0, w_peri, L, '#FCF3CF', "P. PERIMETRAL", rot=90, alpha=0.3, tipo="Pasillo", name="Pas Peri Izq")
+            if conf['t_pasillos']: registrar_obj(PROF_PERIMETRO, 0, w_peri, L, '#FCF3CF', "PASILLO PERIMETRAL", rot=90, alpha=0.3, tipo="Pasillo", name="Pas Peri Izq")
             area_exh += (conf['tramos_izq'] * MOD_1FT * PROF_PERIMETRO)
             
         if conf['peri_der']: 
             for i in range(conf['tramos_der']): registrar_obj(W - PROF_PERIMETRO, conf['pos_der_y'] + (i*MOD_1FT), PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", rot=90, font=4, name=f"PDer{i}")
-            if conf['t_pasillos']: registrar_obj(W - PROF_PERIMETRO - w_peri, 0, w_peri, L, '#FCF3CF', "P. PERIMETRAL", rot=90, alpha=0.3, tipo="Pasillo", name="Pas Peri Der")
+            if conf['t_pasillos']: registrar_obj(W - PROF_PERIMETRO - w_peri, 0, w_peri, L, '#FCF3CF', "PASILLO PERIMETRAL", rot=90, alpha=0.3, tipo="Pasillo", name="Pas Peri Der")
             area_exh += (conf['tramos_der'] * MOD_1FT * PROF_PERIMETRO)
             
         if conf['peri_frente']: 
             for i in range(conf['tramos_frente']): registrar_obj(conf['pos_fre_x'] + (i*MOD_1FT), 0, MOD_1FT, PROF_PERIMETRO, '#D5DBDB', "P", font=4, name=f"PFre{i}")
-            if conf['t_pasillos']: registrar_obj(0, PROF_PERIMETRO, W, w_peri, '#FCF3CF', "P. PERIMETRAL", alpha=0.3, tipo="Pasillo", name="Pas Peri Fre")
+            if conf['t_pasillos']: registrar_obj(0, PROF_PERIMETRO, W, w_peri, '#FCF3CF', "PASILLO PERIMETRAL", alpha=0.3, tipo="Pasillo", name="Pas Peri Fre")
             area_exh += (conf['tramos_frente'] * MOD_1FT * PROF_PERIMETRO)
             
         if conf['peri_fondo']: 
             for i in range(conf['tramos_fondo']): registrar_obj(conf['pos_fon_x'] + (i*MOD_1FT), L - PROF_PERIMETRO, MOD_1FT, PROF_PERIMETRO, '#D5DBDB', "P", font=4, name=f"PFon{i}")
-            if conf['t_pasillos']: registrar_obj(0, L - PROF_PERIMETRO - w_peri, W, w_peri, '#FCF3CF', "P. PERIMETRAL", alpha=0.3, tipo="Pasillo", name="Pas Peri Fon")
+            if conf['t_pasillos']: registrar_obj(0, L - PROF_PERIMETRO - w_peri, W, w_peri, '#FCF3CF', "PASILLO PERIMETRAL", alpha=0.3, tipo="Pasillo", name="Pas Peri Fon")
             area_exh += (conf['tramos_fondo'] * MOD_1FT * PROF_PERIMETRO)
 
     # ==========================================
@@ -281,6 +269,7 @@ def dibujar_layout_oxxo_v22(conf):
                 else: 
                     for t in range(tramos): registrar_obj(xg, yg + CABECERA_PROF + (t*MOD_3FT), GONDOLA_PROF, MOD_3FT, '#ABB2B9', f"Tr{t+1}", font=5, name=f"Tr{t+1} Tren{i+1}")
                 registrar_obj(xg, yg + CABECERA_PROF + largo_g, GONDOLA_PROF, CABECERA_PROF, '#E74C3C', "CAB", font=4, name=f"Cab Norte {i+1}")
+                
                 if conf['t_pasillos']: registrar_obj(xg + GONDOLA_PROF, yg, conf['pas_gon'], largo_g + CABECERA_PROF*2, '#EBEDEF', "P. GÓNDOLAS", rot=90, alpha=0.6, tipo="Pasillo", name=f"Pasillo Gon {i+1}")
                 xg += GONDOLA_PROF + conf['pas_gon']
             else: 
@@ -289,6 +278,7 @@ def dibujar_layout_oxxo_v22(conf):
                 else:
                     for t in range(tramos): registrar_obj(xg + CABECERA_PROF + (t*MOD_3FT), yg, MOD_3FT, GONDOLA_PROF, '#ABB2B9', f"Tr{t+1}", rot=90, font=5, name=f"Tr{t+1} Tren{i+1}")
                 registrar_obj(xg + CABECERA_PROF + largo_g, yg, CABECERA_PROF, GONDOLA_PROF, '#E74C3C', "CAB", rot=90, font=4, name=f"Cab Este {i+1}")
+                
                 if conf['t_pasillos']: registrar_obj(xg, yg + GONDOLA_PROF, largo_g + CABECERA_PROF*2, conf['pas_gon'], '#EBEDEF', "P. GÓNDOLAS", alpha=0.6, tipo="Pasillo", name=f"Pasillo Gon {i+1}")
                 yg += GONDOLA_PROF + conf['pas_gon']
             area_exh += GONDOLA_PROF * (largo_g + CABECERA_PROF*2)
@@ -452,7 +442,7 @@ conf.update({
 })
 
 with col_plot:
-    fig, errores, pct_exh, pct_nav, a_tot, a_com, a_op_real = dibujar_layout_oxxo_v22(conf)
+    fig, errores, pct_exh, pct_nav, a_tot, a_com, a_op_real = dibujar_layout_oxxo_v21(conf)
     st.pyplot(fig)
     
     # Exportaciones Vectoriales (CAD/PDF)
@@ -464,7 +454,7 @@ with col_plot:
     
     buf_svg = io.BytesIO()
     fig.savefig(buf_svg, format="svg", bbox_inches='tight')
-    col_svg.download_button(label="📐 Descargar Plano Vectorial (SVG/CAD)", data=buf_svg.getvalue(), file_name=f"{nombre_tienda}.svg", mime="image/svg+xml", use_container_width=True)
+    col_svg.download_button(label="📐 Descargar Plano Vectorial (SVG)", data=buf_svg.getvalue(), file_name=f"{nombre_tienda}.svg", mime="image/svg+xml", use_container_width=True)
     
     if errores:
         st.error("🚨 **Motor de Colisiones Activo:**")
