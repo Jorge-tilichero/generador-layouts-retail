@@ -46,15 +46,7 @@ def normalizar_rotacion(r):
     if 90 < r < 270: r -= 180
     return r
 
-# --- MOTOR DE TRANSFORMACIÓN ESPACIAL ---
-def obtener_transformacion(muro, ancho_orig, largo_orig):
-    def transform(x, y, w, h, rot_texto=0):
-        if muro == 'Inferior (Frente)': return x, y, w, h, rot_texto
-        elif muro == 'Lateral Izquierdo': return y, x, h, w, rot_texto - 90
-        elif muro == 'Lateral Derecho': return ancho_orig - y - h, x, h, w, rot_texto + 90
-    return transform
-
-def dibujar_layout_oxxo_v22(conf):
+def dibujar_layout_oxxo_v23(conf):
     W, L = conf['ancho'], conf['largo']
 
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -136,19 +128,14 @@ def dibujar_layout_oxxo_v22(conf):
         w_puerta = pw if conf['muro_puerta'] in ['Sur', 'Norte'] else 0.2
         h_puerta = 0.2 if conf['muro_puerta'] in ['Sur', 'Norte'] else pw
         registrar_obj(xp, yp, w_puerta, h_puerta, 'red', "ACCESO", font=5, txt_col='white', weight='bold', name="Acceso", z=11)
-        
         ax.add_patch(patches.Circle((xp + w_puerta/2, yp + h_puerta/2), 2.0, color='#85C1E9', alpha=0.2, zorder=1))
 
         if conf['t_pasillos']:
             wpod = conf['pas_poder']
-            if conf['muro_puerta'] == 'Sur':
-                registrar_obj(xp - (wpod-pw)/2, yp, wpod, L - yp, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
-            elif conf['muro_puerta'] == 'Norte':
-                registrar_obj(xp - (wpod-pw)/2, 0, wpod, yp, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
-            elif conf['muro_puerta'] == 'Este':
-                registrar_obj(0, yp - (wpod-pw)/2, xp, wpod, '#EBF5FB', "PASILLO DE PODER", alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
-            elif conf['muro_puerta'] == 'Oeste':
-                registrar_obj(xp, yp - (wpod-pw)/2, W - xp, wpod, '#EBF5FB', "PASILLO DE PODER", alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
+            if conf['muro_puerta'] == 'Sur': registrar_obj(xp - (wpod-pw)/2, yp, wpod, L - yp, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
+            elif conf['muro_puerta'] == 'Norte': registrar_obj(xp - (wpod-pw)/2, 0, wpod, yp, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
+            elif conf['muro_puerta'] == 'Este': registrar_obj(0, yp - (wpod-pw)/2, xp, wpod, '#EBF5FB', "PASILLO DE PODER", alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
+            elif conf['muro_puerta'] == 'Oeste': registrar_obj(xp, yp - (wpod-pw)/2, W - xp, wpod, '#EBF5FB', "PASILLO DE PODER", alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
 
     # ==========================================
     # 3. CHECKOUT
@@ -188,54 +175,103 @@ def dibujar_layout_oxxo_v22(conf):
             area_exh += (w_chk * PROF_CHECK)
 
     # ==========================================
-    # 4. CUARTO FRÍO
+    # 4. CUARTO FRÍO (Modulado 2ft x 2m y Escuadra Rotable)
     # ==========================================
     if conf['t_frio']:
         xf, yf = conf['pos_frio_x'], conf['pos_frio_y']
         rot_f = conf['rot_frio']
         
         if conf['forma_frio'] == 'Lineal':
-            wf = conf['cant_frio'] * MOD_2FT
-            if rot_f in [0, 180]:
-                registrar_obj(xf, yf, wf, PROF_FRIO, '#AED6F1', "CUARTO FRÍO", weight='bold', name="Frio")
-                if conf['t_pasillos']: registrar_obj(xf, yf - PASILLO_STD if rot_f==0 else yf + PROF_FRIO, wf, PASILLO_STD, '#FCF3CF', "PASILLO FRÍO", alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
-            else:
-                registrar_obj(xf, yf, PROF_FRIO, wf, '#AED6F1', "CUARTO FRÍO", rot=90, weight='bold', name="Frio")
-                if conf['t_pasillos']: registrar_obj(xf - PASILLO_STD if rot_f==90 else xf + PROF_FRIO, yf, PASILLO_STD, wf, '#FCF3CF', "PASILLO FRÍO", rot=90, alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
-            area_exh += (wf * PROF_FRIO)
+            ptas = conf['cant_frio']
+            for i in range(ptas):
+                if rot_f == 0: 
+                    mx, my, dx, dy, dw, dh = xf + i*MOD_2FT, yf, xf + i*MOD_2FT, yf, MOD_2FT, 0.15
+                elif rot_f == 90: 
+                    mx, my, dx, dy, dw, dh = xf, yf + i*MOD_2FT, xf + PROF_FRIO - 0.15, yf + i*MOD_2FT, 0.15, MOD_2FT
+                elif rot_f == 180: 
+                    mx, my, dx, dy, dw, dh = xf - (i+1)*MOD_2FT, yf - PROF_FRIO, xf - (i+1)*MOD_2FT, yf - 0.15, MOD_2FT, 0.15
+                elif rot_f == 270: 
+                    mx, my, dx, dy, dw, dh = xf - PROF_FRIO, yf - (i+1)*MOD_2FT, xf - PROF_FRIO, yf - (i+1)*MOD_2FT, 0.15, MOD_2FT
+                
+                # Módulo y Puerta (Sin rotación interna de registrar_obj porque ya calculamos w/h)
+                registrar_obj(mx, my, MOD_2FT if rot_f in [0,180] else PROF_FRIO, PROF_FRIO if rot_f in [0,180] else MOD_2FT, '#AED6F1', f"CF{i+1}", font=5, name=f"Frio {i+1}")
+                registrar_obj(dx, dy, dw, dh, '#2874A6', name=f"Pta {i+1}")
             
-        else: # Escuadra
-            w1, w2 = conf['ptas_frio_1'] * MOD_2FT, conf['ptas_frio_2'] * MOD_2FT
+            # Pasillo Lineal
+            if conf['t_pasillos']:
+                wf = ptas * MOD_2FT
+                if rot_f == 0: registrar_obj(xf, yf - PASILLO_STD, wf, PASILLO_STD, '#FCF3CF', "P. FRÍO", alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
+                elif rot_f == 90: registrar_obj(xf + PROF_FRIO, yf, PASILLO_STD, wf, '#FCF3CF', "P. FRÍO", rot=90, alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
+                elif rot_f == 180: registrar_obj(xf - wf, yf, wf, PASILLO_STD, '#FCF3CF', "P. FRÍO", alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
+                elif rot_f == 270: registrar_obj(xf - PROF_FRIO - PASILLO_STD, yf - wf, PASILLO_STD, wf, '#FCF3CF', "P. FRÍO", rot=90, alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
+            area_exh += (ptas * MOD_2FT * PROF_FRIO)
+
+        else: # Escuadra Modulada
+            registrar_obj(xf, yf, PROF_FRIO, PROF_FRIO, '#AED6F1', "CF Esq", weight='bold', name="CF Pivote") # Pivote
+            p1, p2 = conf['ptas_frio_1'], conf['ptas_frio_2']
+            
             if rot_f == 0: 
-                registrar_obj(xf, yf, w1, PROF_FRIO, '#AED6F1', "FRIO L1", name="Frio 1")
-                registrar_obj(xf, yf + PROF_FRIO, PROF_FRIO, w2, '#AED6F1', "FRIO L2", rot=90, name="Frio 2")
+                for i in range(p1): 
+                    registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf, MOD_2FT, PROF_FRIO, '#AED6F1', f"L1-{i+1}", font=5, name=f"CF L1 {i+1}")
+                    registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf, MOD_2FT, 0.15, '#2874A6', name=f"Pta L1 {i+1}")
+                for i in range(p2): 
+                    registrar_obj(xf, yf + PROF_FRIO + i*MOD_2FT, PROF_FRIO, MOD_2FT, '#AED6F1', f"L2-{i+1}", font=5, name=f"CF L2 {i+1}")
+                    registrar_obj(xf + PROF_FRIO - 0.15, yf + PROF_FRIO + i*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L2 {i+1}")
             elif rot_f == 90:
-                registrar_obj(xf, yf, PROF_FRIO, w1, '#AED6F1', "FRIO L1", rot=90, name="Frio 1")
-                registrar_obj(xf + PROF_FRIO, yf, w2, PROF_FRIO, '#AED6F1', "FRIO L2", name="Frio 2")
+                for i in range(p1): 
+                    registrar_obj(xf, yf + PROF_FRIO + i*MOD_2FT, PROF_FRIO, MOD_2FT, '#AED6F1', f"L1-{i+1}", font=5, name=f"CF L1 {i+1}")
+                    registrar_obj(xf + PROF_FRIO - 0.15, yf + PROF_FRIO + i*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L1 {i+1}")
+                for i in range(p2):
+                    registrar_obj(xf - (i+1)*MOD_2FT, yf, MOD_2FT, PROF_FRIO, '#AED6F1', f"L2-{i+1}", font=5, name=f"CF L2 {i+1}")
+                    registrar_obj(xf - (i+1)*MOD_2FT, yf, MOD_2FT, 0.15, '#2874A6', name=f"Pta L2 {i+1}")
             elif rot_f == 180:
-                registrar_obj(xf, yf, w1, PROF_FRIO, '#AED6F1', "FRIO L1", name="Frio 1")
-                registrar_obj(xf + w1 - PROF_FRIO, yf - w2, PROF_FRIO, w2, '#AED6F1', "FRIO L2", rot=90, name="Frio 2")
+                for i in range(p1): 
+                    registrar_obj(xf - (i+1)*MOD_2FT, yf, MOD_2FT, PROF_FRIO, '#AED6F1', f"L1-{i+1}", font=5, name=f"CF L1 {i+1}")
+                    registrar_obj(xf - (i+1)*MOD_2FT, yf + PROF_FRIO - 0.15, MOD_2FT, 0.15, '#2874A6', name=f"Pta L1 {i+1}")
+                for i in range(p2):
+                    registrar_obj(xf, yf - (i+1)*MOD_2FT, PROF_FRIO, MOD_2FT, '#AED6F1', f"L2-{i+1}", font=5, name=f"CF L2 {i+1}")
+                    registrar_obj(xf, yf - (i+1)*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L2 {i+1}")
             elif rot_f == 270:
-                registrar_obj(xf, yf, PROF_FRIO, w1, '#AED6F1', "FRIO L1", rot=90, name="Frio 1")
-                registrar_obj(xf - w2, yf + w1 - PROF_FRIO, w2, PROF_FRIO, '#AED6F1', "FRIO L2", name="Frio 2")
-            area_exh += ((w1 * PROF_FRIO) + (w2 * PROF_FRIO))
+                for i in range(p1): 
+                    registrar_obj(xf, yf - (i+1)*MOD_2FT, PROF_FRIO, MOD_2FT, '#AED6F1', f"L1-{i+1}", font=5, name=f"CF L1 {i+1}")
+                    registrar_obj(xf, yf - (i+1)*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L1 {i+1}")
+                for i in range(p2):
+                    registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf, MOD_2FT, PROF_FRIO, '#AED6F1', f"L2-{i+1}", font=5, name=f"CF L2 {i+1}")
+                    registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf + PROF_FRIO - 0.15, MOD_2FT, 0.15, '#2874A6', name=f"Pta L2 {i+1}")
+            
+            area_exh += (PROF_FRIO*PROF_FRIO) + ((p1+p2)*MOD_2FT*PROF_FRIO)
 
     # ==========================================
-    # 5. FOODVENIENCE
+    # 5. FOODVENIENCE (Modulado y Rotable)
     # ==========================================
     if conf['t_cafe']:
-        x_c, y_c = conf['pos_cafe_x'], conf['pos_cafe_y']
-        mods = conf['cant_cafe']
+        xc, yc = conf['pos_cafe_x'], conf['pos_cafe_y']
+        rot_c = conf['rot_cafe']
+        
         if conf['forma_cafe'] == 'Lineal':
-            for i in range(mods): registrar_obj(x_c + (i*MOD_2FT), y_c, MOD_2FT, PROF_CAFE, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
-            if conf['t_pasillos']: registrar_obj(x_c, y_c + PROF_CAFE, mods*MOD_2FT, PASILLO_STD, '#FADBD8', "PASILLO CAFE", alpha=0.5, tipo="Pasillo", name="Pasillo Cafe", txt_col='#E74C3C')
+            mods = conf['cant_cafe']
+            for i in range(mods):
+                if rot_c == 0: registrar_obj(xc + i*MOD_2FT, yc, MOD_2FT, PROF_CAFE, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
+                elif rot_c == 90: registrar_obj(xc, yc + i*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
+                elif rot_c == 180: registrar_obj(xc - (i+1)*MOD_2FT, yc - PROF_CAFE, MOD_2FT, PROF_CAFE, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
+                elif rot_c == 270: registrar_obj(xc - PROF_CAFE, yc - (i+1)*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
             area_exh += (mods * MOD_2FT * PROF_CAFE)
         else: # Escuadra
-            mods_x, mods_y = int(mods / 2), mods - int(mods/2)
-            registrar_obj(x_c, y_c, mods_x*MOD_2FT, PROF_CAFE, '#FAD7A0', "CAFE H", name="Cafe Horiz")
-            registrar_obj(x_c, y_c + PROF_CAFE, PROF_CAFE, mods_y*MOD_2FT, '#FAD7A0', "CAFE V", rot=90, name="Cafe Vert")
-            registrar_obj(x_c, y_c, PROF_CAFE, PROF_CAFE, '#E59866', "X", name="Cafe Pivote")
-            area_exh += (mods * MOD_2FT * PROF_CAFE)
+            registrar_obj(xc, yc, PROF_CAFE, PROF_CAFE, '#E59866', "C-Esq", name="Cafe Pivote") # Pivote
+            p1, p2 = conf['mods_cafe_1'], conf['mods_cafe_2']
+            if rot_c == 0:
+                for i in range(p1): registrar_obj(xc + PROF_CAFE + i*MOD_2FT, yc, MOD_2FT, PROF_CAFE, '#FAD7A0', f"L1-{i+1}", font=5, name=f"C L1 {i+1}")
+                for i in range(p2): registrar_obj(xc, yc + PROF_CAFE + i*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"L2-{i+1}", font=5, name=f"C L2 {i+1}")
+            elif rot_c == 90:
+                for i in range(p1): registrar_obj(xc, yc + PROF_CAFE + i*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"L1-{i+1}", font=5, name=f"C L1 {i+1}")
+                for i in range(p2): registrar_obj(xc - (i+1)*MOD_2FT, yc, MOD_2FT, PROF_CAFE, '#FAD7A0', f"L2-{i+1}", font=5, name=f"C L2 {i+1}")
+            elif rot_c == 180:
+                for i in range(p1): registrar_obj(xc - (i+1)*MOD_2FT, yc, MOD_2FT, PROF_CAFE, '#FAD7A0', f"L1-{i+1}", font=5, name=f"C L1 {i+1}")
+                for i in range(p2): registrar_obj(xc, yc - (i+1)*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"L2-{i+1}", font=5, name=f"C L2 {i+1}")
+            elif rot_c == 270:
+                for i in range(p1): registrar_obj(xc, yc - (i+1)*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"L1-{i+1}", font=5, name=f"C L1 {i+1}")
+                for i in range(p2): registrar_obj(xc + PROF_CAFE + i*MOD_2FT, yc, MOD_2FT, PROF_CAFE, '#FAD7A0', f"L2-{i+1}", font=5, name=f"C L2 {i+1}")
+            area_exh += (PROF_CAFE*PROF_CAFE) + ((p1+p2)*MOD_2FT*PROF_CAFE)
 
     # ==========================================
     # 6. PERIMETRALES
@@ -292,7 +328,7 @@ def dibujar_layout_oxxo_v22(conf):
             area_exh += GONDOLA_PROF * (largo_g + CABECERA_PROF*2)
 
     # ==========================================
-    # 8. ISLAS INDIVIDUALES
+    # 8. ISLAS INDIVIDUALES (JOYSTICK)
     # ==========================================
     if conf['t_islas']:
         for i in range(conf['cant_islas']):
@@ -304,13 +340,12 @@ def dibujar_layout_oxxo_v22(conf):
     pct_nav = 100 - pct_exh
     
     ax.set_aspect('equal')
-    plt.title(f"Store Planning OXXO: {conf['nombre_tienda']} | Formato: {clasificar_formato(area_total)}")
+    plt.title(f"Store Planning: {conf['nombre_tienda']} | Formato: {clasificar_formato(area_total)}")
     return fig, errores, pct_exh, pct_nav, area_total, area_comercial, a_op
 
 # --- INTERFAZ STREAMLIT ---
 st.set_page_config(layout="wide", page_title="Store Planning OXXO")
 
-# Inicialización de configuración
 conf = {}
 
 with st.sidebar:
@@ -372,7 +407,7 @@ with col_info:
     with st.expander("4. Checkout", expanded=False):
         t_check = st.checkbox("Habilitar Checkout", value=False)
         cant_check = st.slider("Módulos", 2, 7, 3)
-        rot_check = st.selectbox("Rotación (°)", [0, 90, 180, 270])
+        rot_check = st.selectbox("Rotación Checkout (°)", [0, 90, 180, 270])
         pos_chk_x = st.number_input("Check Pos X", 0.0, float(ancho), ancho - (cant_check*MOD_2FT), 0.1)
         pos_chk_y = st.number_input("Check Pos Y", 0.0, float(largo), 0.0, 0.1)
 
@@ -403,9 +438,15 @@ with col_info:
     with st.expander("7. Foodvenience", expanded=False):
         t_cafe = st.checkbox("Habilitar Foodvenience", value=False)
         forma_cafe = st.radio("Formato Café", ['Lineal', 'Escuadra'])
-        cant_cafe = st.slider("Módulos Café", 2, 10, 4)
+        rot_cafe = st.selectbox("Rotación Café (°)", [0, 90, 180, 270])
         pos_cafe_x = st.number_input("Café Pos X", 0.0, float(ancho), 0.0, 0.1)
         pos_cafe_y = st.number_input("Café Pos Y", 0.0, float(largo), 0.0, 0.1)
+        if forma_cafe == 'Lineal': cant_cafe = st.slider("Módulos Café", 2, 10, 4)
+        else:
+            col_c1, col_c2 = st.columns(2)
+            mods_cafe_1 = col_c1.number_input("Café Lado 1", 1, 10, 2)
+            mods_cafe_2 = col_c2.number_input("Café Lado 2", 1, 10, 2)
+            cant_cafe = mods_cafe_1 + mods_cafe_2
 
     with st.expander("8. Góndola Perimetral", expanded=False):
         t_perimetral = st.checkbox("Habilitar Perimetrales Manual", value=False)
@@ -444,25 +485,23 @@ conf.update({
     't_check': t_check, 'rot_check': rot_check, 'cant_check': cant_check, 'pos_chk_x': pos_chk_x, 'pos_chk_y': pos_chk_y,
     't_frio': t_frio, 'forma_frio': forma_frio, 'rot_frio': rot_frio, 'cant_frio': cant_frio if forma_frio=='Lineal' else 0, 'ptas_frio_1': ptas_frio_1 if forma_frio=='Escuadra' else 0, 'ptas_frio_2': ptas_frio_2 if forma_frio=='Escuadra' else 0, 'pos_frio_x': pos_frio_x, 'pos_frio_y': pos_frio_y,
     't_gondolas': t_gondolas, 'rot_gon': rot_gon, 'sep_cab': sep_cab, 'cant_trenes': cant_trenes, 'cant_tramos': cant_tramos, 'pas_gon': pas_gon, 'pos_gon_x': pos_gon_x, 'pos_gon_y': pos_gon_y,
-    't_cafe': t_cafe, 'forma_cafe': forma_cafe, 'cant_cafe': cant_cafe, 'pos_cafe_x': pos_cafe_x, 'pos_cafe_y': pos_cafe_y,
+    't_cafe': t_cafe, 'forma_cafe': forma_cafe, 'rot_cafe': rot_cafe if 'rot_cafe' in locals() else 0, 'cant_cafe': cant_cafe, 'mods_cafe_1': mods_cafe_1 if forma_cafe=='Escuadra' else 0, 'mods_cafe_2': mods_cafe_2 if forma_cafe=='Escuadra' else 0, 'pos_cafe_x': pos_cafe_x, 'pos_cafe_y': pos_cafe_y,
     't_perimetral': t_perimetral, 'peri_izq': peri_izq, 'tramos_izq': tramos_izq, 'pos_izq_y': pos_izq_y, 'peri_der': peri_der, 'tramos_der': tramos_der, 'pos_der_y': pos_der_y, 'peri_frente': peri_frente, 'tramos_frente': tramos_frente, 'pos_fre_x': pos_fre_x, 'peri_fondo': peri_fondo, 'tramos_fondo': tramos_fondo, 'pos_fon_x': pos_fon_x,
     't_islas': t_islas, 'cant_islas': cant_islas
 })
 
 with col_plot:
-    fig, errores, pct_exh, pct_nav, a_tot, a_com, a_op_real = dibujar_layout_oxxo_v22(conf)
+    fig, errores, pct_exh, pct_nav, a_tot, a_com, a_op_real = dibujar_layout_oxxo_v23(conf)
     st.pyplot(fig)
     
-    # Exportaciones Vectoriales (CAD/PDF)
     col_pdf, col_svg = st.columns(2)
-    
     buf_pdf = io.BytesIO()
     fig.savefig(buf_pdf, format="pdf", bbox_inches='tight')
-    col_pdf.download_button(label="📥 Descargar Plano PDF", data=buf_pdf.getvalue(), file_name=f"{nombre_tienda}.pdf", mime="application/pdf", use_container_width=True)
+    col_pdf.download_button("📥 Descargar Plano PDF", data=buf_pdf.getvalue(), file_name=f"{nombre_tienda}.pdf", mime="application/pdf", use_container_width=True)
     
     buf_svg = io.BytesIO()
     fig.savefig(buf_svg, format="svg", bbox_inches='tight')
-    col_svg.download_button(label="📐 Descargar Plano Vectorial (SVG)", data=buf_svg.getvalue(), file_name=f"{nombre_tienda}.svg", mime="image/svg+xml", use_container_width=True)
+    col_svg.download_button("📐 Descargar Vectorial (SVG)", data=buf_svg.getvalue(), file_name=f"{nombre_tienda}.svg", mime="image/svg+xml", use_container_width=True)
     
     if errores:
         st.error("🚨 **Motor de Colisiones Activo:**")
