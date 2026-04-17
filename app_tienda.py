@@ -17,6 +17,21 @@ GONDOLA_PROF = 0.90
 CABECERA_PROF = 0.45  
 ISLA_DIM = 0.60
 
+# --- CLASIFICADOR DE MATRIZ DE FORMATOS OXXO ---
+def clasificar_formato(m2):
+    """Clasifica la tienda según la matriz oficial de OXXO basada en los m2 totales"""
+    if m2 <= 15: return "BOOTH (Compacto)"
+    elif m2 <= 36: return "MINI (Reducido)"
+    elif m2 <= 56: return "MINI 2 (Reducido)"
+    elif m2 <= 77: return "MEDIA (Ordinario)"
+    elif m2 <= 98: return "MEDIA 2 (Ordinario)"
+    elif m2 <= 117: return "REGULAR (Ordinario)"
+    elif m2 <= 135: return "MÍNIMO 2 (Ordinario)"
+    elif m2 <= 154: return "ÓPTIMO (Ordinario)"
+    elif m2 <= 170: return "ÓPTIMO 2 (Ordinario)"
+    elif m2 <= 250: return "MÁXIMO (Extra Ordinario)"
+    else: return "MEGA (Extra Ordinario)"
+
 def colisiona(x, y, w, h, obstaculos):
     margen = 0.05
     for (ox, oy, ow, oh) in obstaculos:
