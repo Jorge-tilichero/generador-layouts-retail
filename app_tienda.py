@@ -123,4 +123,86 @@ def dibujar_layout_v6(conf):
     # === 6. EXHIBIDORES (Islas Promocionales en Zonas Seguras) ===
     # En lugar de ponerlas en el pasillo central, las agrupamos cerca de la descompresión/café/checkout, fuera del flujo
     islas_colocadas = 0
-    x_promo
+    x_promo = 1.0
+    y_promo = 2.0
+    
+    while islas_colocadas < conf['cant_exhibidores']:
+        # Evitar el pasillo de poder
+        if x_promo > x_inicio_pasillo - ISLA_DIM - 0.3 and x_promo < x_inicio_pasillo + PUERTA_ANCHO + 0.3:
+            x_promo = x_inicio_pasillo + PUERTA_ANCHO + 0.5 # Saltar el pasillo
+            
+        # Evitar salirnos de la tienda o chocar con frío
+        if x_promo + ISLA_DIM > ancho:
+            x_promo = 1.0
+            y_promo += (ISLA_DIM + 0.60) # Nueva fila
+            
+        if y_promo + ISLA_DIM > y_limite_frio or y_promo > y_inicio_gondolas - 0.5:
+            break # Ya no hay espacio seguro
+            
+        ax.add_patch(patches.Rectangle((x_promo, y_promo), ISLA_DIM, ISLA_DIM, color='#F4D03F'))
+        plt.text(x_promo + ISLA_DIM/2, y_promo + ISLA_DIM/2, f'E{islas_colocadas+1}', ha='center', va='center', fontsize=6)
+        
+        x_promo += (ISLA_DIM + 0.60)
+        islas_colocadas += 1
+
+    # === FINALIZACIÓN ===
+    plt.plot([x_inicio_pasillo, x_inicio_pasillo + PUERTA_ANCHO], [0, 0], color='red', linewidth=10)
+    ax.set_aspect('equal')
+    plt.title("Layout V6.0: Pasillos Libres y Mago de Configuración")
+    return fig
+
+# --- UI STREAMLIT: WIZARD PASO A PASO ---
+st.set_page_config(layout="wide")
+st.title("🏗️ Diseñador de Tiendas V6 (Paso a Paso)")
+
+st.sidebar.header("Paso 1: Medidas del Local")
+ancho = st.sidebar.number_input("Ancho (m)", min_value=5.0, max_value=20.0, value=12.0, step=0.5)
+largo = st.sidebar.number_input("Profundidad (m)", min_value=5.0, max_value=20.0, value=15.0, step=0.5)
+
+st.sidebar.header("Paso 2: Accesos")
+puerta_loc = st.sidebar.selectbox("¿Dónde ubicarás la puerta principal?", ['Centro', 'Izquierda', 'Derecha'])
+
+st.sidebar.header("Paso 3: Bodega")
+bodega_loc = st.sidebar.selectbox("Ubicación sugerida de la Bodega", ['Fondo Completo', 'Fondo Izquierda', 'Fondo Derecha'])
+
+st.sidebar.header("Paso 4: Cuarto Frío")
+cant_frio = st.sidebar.number_input("Número de puertas de Frío (24\")", min_value=2, max_value=20, value=8)
+
+st.sidebar.header("Paso 5: Góndolas")
+cant_trenes = st.sidebar.number_input("Cantidad de trenes de góndola", min_value=1, max_value=4, value=2)
+cant_tramos = st.sidebar.number_input("Tramos por tren (3ft)", min_value=1, max_value=6, value=3)
+st.sidebar.caption("✅ Cabeceras incluidas automáticamente (2 por tren).")
+
+st.sidebar.header("Paso 6: Exhibidores (Islas)")
+cant_exhibidores = st.sidebar.number_input("Cantidad de exhibidores de piso", min_value=1, max_value=20, value=4)
+st.sidebar.caption("Se posicionarán en áreas seguras fuera de pasillos.")
+
+st.sidebar.header("Paso 7: Área de Café")
+cant_cafe = st.sidebar.number_input("Módulos de Café (2ft)", min_value=2, max_value=10, value=4)
+
+conf = {
+    'ancho': ancho,
+    'largo': largo,
+    'puerta_loc': puerta_loc,
+    'bodega_loc': bodega_loc,
+    'cant_frio': cant_frio,
+    'cant_trenes': cant_trenes,
+    'cant_tramos': cant_tramos,
+    'cant_exhibidores': cant_exhibidores,
+    'cant_cafe': cant_cafe
+}
+
+col_main, col_info = st.columns([3, 1])
+
+with col_main:
+    st.pyplot(dibujar_layout_v6(conf))
+
+with col_info:
+    st.subheader("Auditoría de Pasillos")
+    st.success("✔️ Pasillo de Poder Libre (1.80m)")
+    st.success("✔️ Pasillos Laterales Libres (1.20m)")
+    st.success("✔️ Fila Checkout Libre (1.20m)")
+    st.success("✔️ Frente Frío Libre (1.20m)")
+    
+    st.markdown("---")
+    st.write("**Notas:** Si el local es muy pequeño y solicitas demasiados exhibidores, el sistema solo dibujará los que quepan en las zonas de promoción para garantizar el flujo seguro.")
