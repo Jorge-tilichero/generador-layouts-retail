@@ -1,9 +1,10 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.ticker import MultipleLocator
 
 # --- CONSTANTES DE MODULACIÓN EXACTA ---
-MOD_1FT = 0.30        
+MOD_1FT = 0.30
 MOD_2FT = 0.61        
 MOD_3FT = 0.91        
 PROF_CAFE = 0.75      
@@ -14,29 +15,7 @@ PROF_FRIO = 2.00
 PROF_PERIMETRO = 0.45 
 GONDOLA_PROF = 0.90   
 CABECERA_PROF = 0.45  
-PUERTA_ANCHO = 1.80   
-PASILLO_STD = 1.20    
 ISLA_DIM = 0.60
-
-def colisiona(x, y, w, h, obstaculos):
-    margen = 0.05
-    for (ox, oy, ow, oh) in obstaculos:
-        if not (x + w <= ox + margen or x >= ox + ow - margen or y + h <= oy + margen or y >= oy + oh - margen):
-            return True
-    return False
-
-# --- MOTOR DE TRANSFORMACIÓN (Rotación 360) ---
-def obtener_transformacion(muro, ancho_orig, largo_orig):
-    def transform(x, y, w, h, rot_texto=0):
-        if muro == 'Inferior (Frente)': return x, y, w, h, rot_texto
-        elif muro == 'Lateral Izquierdo': return y, x, h, w, rot_texto - 90
-        elif muro == 'Lateral Derecho': return ancho_orig - y - h, x, h, w, rot_texto + 90
-    return transform
-
-def normalizar_rotacion(r):
-    r = r % 360
-    if 90 < r < 270: r -= 180
-    return r
 
 # --- CLASIFICADOR DE MATRIZ DE FORMATOS OXXO ---
 def clasificar_formato(m2):
@@ -52,300 +31,324 @@ def clasificar_formato(m2):
     elif m2 <= 250: return "MÁXIMO (Extra Ordinario)"
     else: return "MEGA (Extra Ordinario)"
 
-def dibujar_layout_oxxo(conf):
-    ancho_real, largo_real = conf['ancho'], conf['largo']
-    muro = conf['muro_puerta']
+def colisiona(x, y, w, h, obstaculos):
+    margen = 0.05
+    for (ox, oy, ow, oh, nombre) in obstaculos:
+        if not (x + w <= ox + margen or x >= ox + ow - margen or y + h <= oy + margen or y >= oy + oh - margen):
+            return True, nombre
+    return False, ""
+
+def dibujar_layout_oxxo_v20(conf):
+    W, L = conf['ancho'], conf['largo']
+    fig, ax = plt.subplots(figsize=(12, 12))
+    ax.set_xlim(0, W)
+    ax.set_ylim(0, L)
     
-    if muro == 'Inferior (Frente)': W, L = ancho_real, largo_real
-    else: W, L = largo_real, ancho_real 
-
-    fig, ax = plt.subplots(figsize=(10, 10))
-    ax.set_xlim(0, ancho_real)
-    ax.set_ylim(0, largo_real)
+    # Cuadrícula 1x1m
+    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.yaxis.set_major_locator(MultipleLocator(1))
+    ax.grid(which='major', color='#E5E7E9', linestyle='-', linewidth=0.5, zorder=0)
     
-    trans = obtener_transformacion(muro, ancho_real, largo_real)
-    obstaculos, errores = [], []
-    area_exhibicion = 0 
-    
-    def dibujar(x, y, w, h, color, ec='black', alpha=1.0, texto="", fontsize=6, rot=0, color_txt='black', weight='normal'):
-        xn, yn, wn, hn, rotn = trans(x, y, w, h, rot)
-        ax.add_patch(patches.Rectangle((xn, yn), wn, hn, color=color, ec=ec, alpha=alpha))
-        if texto:
-            cx, cy = xn + wn/2, yn + hn/2
-            ax.text(cx, cy, texto, ha='center', va='center', rotation=normalizar_rotacion(rotn), fontsize=fontsize, color=color_txt, weight=weight)
+    # Muros Exteriores
+    ax.add_patch(patches.Rectangle((0, 0), W, L, fill=False, ec='black', lw=4, zorder=10))
 
-    def dibujar_circulo(x, y, r, color, alpha):
-        xn, yn, _, _, _ = trans(x - r, y - r, r*2, r*2, 0)
-        ax.add_patch(patches.Circle((xn + r, yn + r), r, color=color, alpha=alpha))
-
-    # Lienzo
-    ax.add_patch(patches.Rectangle((0, 0), ancho_real, largo_real, fill=False, ec='black', lw=3))
-
+    obstaculos = []
+    errores = []
+    area_exh = 0
     area_total = W * L
-    area_operativa = area_total * 0.20 
-    area_comercial = area_total - area_operativa
+    area_operativa = area_total * 0.20
+    area_comercial = area_total * 0.80
+
+    def registrar_obj(x, y, w, h, color, texto="", rot=0, alpha=1.0, font=6, z=5, is_obs=True, name="Objeto", txt_col='black'):
+        if rot == 90 or rot == 270: w, h = h, w
+        
+        # Validar colisión antes de dibujar si es un objeto físico
+        if is_obs:
+            choca, obj_chocado = colisiona(x, y, w, h, obstaculos)
+            if choca: 
+                errores.append(f"{name} colisiona con {obj_chocado}.")
+                ec = 'red'
+                lw = 2
+            else:
+                obstaculos.append((x, y, w, h, name))
+                ec = 'black'
+                lw = 1
+        else:
+            ec = 'none'
+            lw = 0
+
+        ax.add_patch(patches.Rectangle((x, y), w, h, color=color, ec=ec, lw=lw, alpha=alpha, zorder=z))
+        if texto:
+            ax.text(x + w/2, y + h/2, texto, ha='center', va='center', rotation=rot if rot in [90, 270] else 0, fontsize=font, color=txt_col)
+        return w, h
 
     # ==========================================
-    # 1. ACCESO Y PASILLO DE PODER
+    # 1. BODEGA OPERATIVA (20%)
+    # ==========================================
+    w_bod, h_bod = W, area_operativa / W
+    x_bod, y_bod = 0, L - h_bod
+    if conf['t_bodega']:
+        loc_b = conf['loc_bodega']
+        if loc_b == 'Fondo (Norte)': x_bod, y_bod = 0, L - h_bod
+        elif loc_b == 'Frente (Sur)': x_bod, y_bod = 0, 0
+        elif loc_b == 'Lateral Izq (Oeste)': w_bod, h_bod = area_operativa / L, L; x_bod, y_bod = 0, 0
+        elif loc_b == 'Lateral Der (Este)': w_bod, h_bod = area_operativa / L, L; x_bod, y_bod = W - w_bod, 0
+        
+        registrar_obj(x_bod, y_bod, w_bod, h_bod, '#D2B48C', "BODEGA (20%)", font=8, name="Bodega")
+        
+        # Pasillo Interior y Racks (50cm)
+        pb = conf['pas_bod']
+        ax.add_patch(patches.Rectangle((x_bod + 0.5, y_bod + 0.5), w_bod - 1.0, h_bod - 1.0, color='#E59866', alpha=0.3, zorder=6))
+        ax.text(x_bod + w_bod/2, y_bod + h_bod/2 - 0.5, f'Pasillo Bodega: {pb}m\nRacks 50cm', ha='center', fontsize=6)
+
+    # ==========================================
+    # 2. ACCESO Y PASILLO DE PODER
     # ==========================================
     if conf['t_puerta']:
-        pos_p = conf['pos_puerta']
-        dibujar(pos_p, 0, PUERTA_ANCHO, 0.2, 'red', ec='darkred', texto='ACCESO', color_txt='white', fontsize=5)
-        dibujar_circulo(pos_p + PUERTA_ANCHO/2, 0, 2.0, '#85C1E9', 0.3)
-        dibujar(pos_p, 0, PUERTA_ANCHO, L, '#EBF5FB', ec='none', alpha=0.6, texto='PASILLO DE PODER', rot=90, color_txt='#21618C', weight='bold')
-        obstaculos.append((pos_p - 0.2, 0, PUERTA_ANCHO + 0.4, L)) 
+        pw = 0.9 if conf['tipo_puerta'] == '1 Puerta (90cm)' else 1.80
+        xp, yp = conf['pos_puerta_x'], conf['pos_puerta_y']
+        registrar_obj(xp, yp, pw if conf['muro_puerta'] in ['Sur', 'Norte'] else 0.2, 0.2 if conf['muro_puerta'] in ['Sur', 'Norte'] else pw, 'red', "ACCESO", font=5, txt_col='white', name="Acceso", z=11)
+        ax.add_patch(patches.Circle((xp + (pw/2 if conf['muro_puerta'] in ['Sur', 'Norte'] else 0), yp + (pw/2 if conf['muro_puerta'] in ['Este', 'Oeste'] else 0)), 2.0, color='#85C1E9', alpha=0.3, zorder=1))
+
+        if conf['t_pasillos']:
+            wpod = conf['pas_poder']
+            if conf['muro_puerta'] == 'Sur':
+                registrar_obj(xp - (wpod-pw)/2, yp, wpod, L if not conf['t_bodega'] or conf['loc_bodega'] != 'Fondo (Norte)' else y_bod, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, is_obs=False, txt_col='#154360')
+                obstaculos.append((xp - (wpod-pw)/2, yp, wpod, L, "Pasillo de Poder"))
+            elif conf['muro_puerta'] == 'Norte':
+                registrar_obj(xp - (wpod-pw)/2, 0, wpod, yp, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, is_obs=False, txt_col='#154360')
+                obstaculos.append((xp - (wpod-pw)/2, 0, wpod, yp, "Pasillo de Poder"))
 
     # ==========================================
-    # 2. CHECKOUT EN ESQUINA
+    # 3. CHECKOUT (Joystick y Rotación)
     # ==========================================
-    if conf['t_check'] and conf['t_puerta']:
-        ancho_check = conf['cant_check'] * MOD_2FT
-        if ancho_check > W - PUERTA_ANCHO:
-            errores.append(f"Checkout excede ancho.")
-            ancho_check = (W - PUERTA_ANCHO) - 1.0 
-            
-        x_chk = W - ancho_check if conf['loc_check'] == 'Esquina Inferior Derecha' else 0
-        y_chk = 0
+    if conf['t_check']:
+        mods_chk = conf['cant_check']
+        xc, yc = conf['pos_chk_x'], conf['pos_chk_y']
+        rot_c = conf['rot_check']
+        w_chk = mods_chk * MOD_2FT
         
-        if colisiona(x_chk, y_chk, ancho_check, PROF_CONTRA + PROF_CAJERO + PROF_CHECK, obstaculos):
-            errores.append("Checkout colisiona con el acceso.")
-        else:
-            dibujar(x_chk, y_chk, ancho_check, PROF_CONTRA, '#82E0AA', texto='C.CAJA', fontsize=5)
-            dibujar(x_chk, y_chk + PROF_CONTRA, ancho_check, PROF_CAJERO, '#EAEDED', texto='PASILLO CAJERO', fontsize=6, color_txt='gray')
-            y_mods = y_chk + PROF_CONTRA + PROF_CAJERO
-            for i in range(conf['cant_check']):
-                dibujar(x_chk + (i*MOD_2FT), y_mods, MOD_2FT, PROF_CHECK, '#ABEBC6', texto=f'CHK{i+1}')
-            y_fila = y_mods + PROF_CHECK
-            dibujar(x_chk, y_fila, ancho_check, PASILLO_STD, '#D5F5E3', ec='none', alpha=0.5, texto='PASILLO COBRO', color_txt='#186A3B')
+        if rot_c == 0: # Frente al Sur
+            registrar_obj(xc, yc, w_chk, PROF_CONTRA, '#82E0AA', "C.CAJA", name="Contracaja")
+            registrar_obj(xc, yc + PROF_CONTRA, w_chk, PROF_CAJERO, '#EAEDED', "P. CAJERO (1m)", name="Pasillo Cajero")
+            for i in range(mods_chk): registrar_obj(xc + (i*MOD_2FT), yc + PROF_CONTRA + PROF_CAJERO, MOD_2FT, PROF_CHECK, '#ABEBC6', f"CHK{i+1}", font=5, name=f"Modulo CHK{i+1}")
+            if conf['t_pasillos']: registrar_obj(xc, yc + PROF_CONTRA + PROF_CAJERO + PROF_CHECK, w_chk, PASILLO_STD, '#D5F5E3', "PASILLO COBRO", alpha=0.5, is_obs=True, name="Pasillo Cobro")
+            area_exh += (w_chk * PROF_CHECK)
             
-            obstaculos.append((x_chk, 0, ancho_check, y_fila + PASILLO_STD))
-            area_exhibicion += (ancho_check * PROF_CHECK)
+        elif rot_c == 90: # Frente al Este
+            registrar_obj(xc, yc, PROF_CONTRA, w_chk, '#82E0AA', "C.CAJA", rot=90, name="Contracaja")
+            registrar_obj(xc + PROF_CONTRA, yc, PROF_CAJERO, w_chk, '#EAEDED', "P. CAJERO", rot=90, name="Pasillo Cajero")
+            for i in range(mods_chk): registrar_obj(xc + PROF_CONTRA + PROF_CAJERO, yc + (i*MOD_2FT), PROF_CHECK, MOD_2FT, '#ABEBC6', f"CHK{i+1}", font=5, rot=90, name=f"Modulo CHK{i+1}")
+            if conf['t_pasillos']: registrar_obj(xc + PROF_CONTRA + PROF_CAJERO + PROF_CHECK, yc, PASILLO_STD, w_chk, '#D5F5E3', "PASILLO COBRO", rot=90, alpha=0.5, is_obs=True, name="Pasillo Cobro")
+            area_exh += (w_chk * PROF_CHECK)
+            
+        elif rot_c == 180: # Frente al Norte
+            if conf['t_pasillos']: registrar_obj(xc, yc, w_chk, PASILLO_STD, '#D5F5E3', "PASILLO COBRO", alpha=0.5, is_obs=True, name="Pasillo Cobro")
+            for i in range(mods_chk): registrar_obj(xc + (i*MOD_2FT), yc + PASILLO_STD, MOD_2FT, PROF_CHECK, '#ABEBC6', f"CHK{i+1}", font=5, name=f"Modulo CHK{i+1}")
+            registrar_obj(xc, yc + PASILLO_STD + PROF_CHECK, w_chk, PROF_CAJERO, '#EAEDED', "P. CAJERO (1m)", name="Pasillo Cajero")
+            registrar_obj(xc, yc + PASILLO_STD + PROF_CHECK + PROF_CAJERO, w_chk, PROF_CONTRA, '#82E0AA', "C.CAJA", name="Contracaja")
+            area_exh += (w_chk * PROF_CHECK)
 
     # ==========================================
-    # 3. CUARTO FRÍO
+    # 4. CUARTO FRÍO (Destino 7ft)
     # ==========================================
-    if conf['t_frio'] and conf['t_check']:
+    if conf['t_frio']:
+        xf, yf = conf['pos_frio_x'], conf['pos_frio_y']
         ptas = conf['cant_frio']
-        y_frio = L - PROF_FRIO
+        wfrio = ptas * MOD_2FT
+        
         if conf['forma_frio'] == 'Lineal':
-            ancho_frio = ptas * MOD_2FT
-            x_frio = 0 if conf['loc_frio'] == 'Fondo Izquierda' else W - ancho_frio
-            if ancho_frio > W: errores.append("El cuarto frío excede el ancho.")
-            else:
-                dibujar(x_frio, y_frio, ancho_frio, PROF_FRIO, '#AED6F1', texto='CUARTO FRÍO', weight='bold')
-                for i in range(ptas): dibujar(x_frio + (i*MOD_2FT), y_frio, MOD_2FT, 0.15, '#2874A6', ec='white', texto=f'P{i+1}', color_txt='white', rot=90)
-                dibujar(x_frio, y_frio - PASILLO_STD, ancho_frio, PASILLO_STD, '#FCF3CF', ec='none', alpha=0.6, texto='PASILLO FRÍO', color_txt='#9A7D0A')
-                obstaculos.append((x_frio, y_frio - PASILLO_STD, ancho_frio, PROF_FRIO + PASILLO_STD))
-                area_exhibicion += (ancho_frio * PROF_FRIO)
+            registrar_obj(xf, yf, wfrio, PROF_FRIO, '#AED6F1', "CUARTO FRÍO (7ft)", weight='bold', name="Cuarto Frio")
+            for i in range(ptas): registrar_obj(xf + (i*MOD_2FT), yf, MOD_2FT, 0.15, '#2874A6', f"P{i+1}", rot=90, font=4, txt_col='white', name=f"Pta Frio {i+1}")
+            if conf['t_pasillos']: registrar_obj(xf, yf - PASILLO_STD, wfrio, PASILLO_STD, '#FCF3CF', "PASILLO FRÍO", alpha=0.6, is_obs=True, name="Pasillo Frio", txt_col='#9A7D0A')
+            area_exh += (wfrio * PROF_FRIO)
         else: # Escuadra
-            ptas_fondo = int(ptas * 0.6)
-            ptas_lat = ptas - ptas_fondo
-            ancho_f, largo_l = ptas_fondo * MOD_2FT, ptas_lat * MOD_2FT
-            if ancho_f > W or largo_l > L: errores.append("Frío en escuadra excede límites.")
-            else:
-                if conf['loc_frio'] == 'Fondo Izquierda':
-                    dibujar(0, y_frio, ancho_f, PROF_FRIO, '#AED6F1')
-                    dibujar(0, y_frio - largo_l, PROF_FRIO, largo_l, '#AED6F1')
-                    dibujar(0, y_frio - PASILLO_STD, ancho_f, PASILLO_STD, '#FCF3CF', ec='none', alpha=0.6)
-                    dibujar(PROF_FRIO, y_frio - largo_l, PASILLO_STD, largo_l, '#FCF3CF', ec='none', alpha=0.6)
-                    obstaculos.append((0, y_frio - largo_l - PASILLO_STD, max(ancho_f, PROF_FRIO + PASILLO_STD), PROF_FRIO + largo_l + PASILLO_STD))
-                else:
-                    x_f = W - ancho_f
-                    dibujar(x_f, y_frio, ancho_f, PROF_FRIO, '#AED6F1')
-                    dibujar(W - PROF_FRIO, y_frio - largo_l, PROF_FRIO, largo_l, '#AED6F1')
-                    obstaculos.append((W - max(ancho_f, PROF_FRIO + PASILLO_STD), y_frio - largo_l - PASILLO_STD, max(ancho_f, PROF_FRIO + PASILLO_STD), PROF_FRIO + largo_l + PASILLO_STD))
-                area_exhibicion += ((ancho_f * PROF_FRIO) + (PROF_FRIO * largo_l))
+            pfondo = int(ptas * 0.6)
+            plat = ptas - pfondo
+            registrar_obj(xf, yf, pfondo*MOD_2FT, PROF_FRIO, '#AED6F1', "FRÍO FONDO", name="Frio Fondo")
+            registrar_obj(xf, yf - (plat*MOD_2FT), PROF_FRIO, plat*MOD_2FT, '#AED6F1', "FRÍO LAT", rot=90, name="Frio Lat")
+            area_exh += ((pfondo*MOD_2FT*PROF_FRIO) + (plat*MOD_2FT*PROF_FRIO))
 
     # ==========================================
-    # 4. GÓNDOLAS CENTRALES
+    # 5. GÓNDOLAS CENTRALES (4ft - 5ft)
     # ==========================================
-    if conf['t_gondolas'] and conf['t_frio']:
-        y_inicio_g, x_g, trenes_colocados = 4.0, PASILLO_STD + PROF_PERIMETRO, 0
+    if conf['t_gondolas']:
+        xg, yg = conf['pos_gon_x'], conf['pos_gon_y']
+        tramos = conf['cant_tramos']
+        largo_g = tramos * MOD_3FT
+        
         for i in range(conf['cant_trenes']):
-            largo_g = conf['cant_tramos'] * MOD_3FT
-            colocado = False
-            while x_g + GONDOLA_PROF < W:
-                if not colisiona(x_g, y_inicio_g, GONDOLA_PROF, largo_g + CABECERA_PROF*2, obstaculos):
-                    dibujar(x_g, y_inicio_g, GONDOLA_PROF, CABECERA_PROF, '#E74C3C', texto='CAB', fontsize=5)
-                    for t in range(conf['cant_tramos']): dibujar(x_g, y_inicio_g + CABECERA_PROF + (t*MOD_3FT), GONDOLA_PROF, MOD_3FT, '#ABB2B9', texto=f'Tr{t+1}')
-                    dibujar(x_g, y_inicio_g + CABECERA_PROF + largo_g, GONDOLA_PROF, CABECERA_PROF, '#E74C3C', texto='CAB', fontsize=5)
-                    pas_x = x_g - PASILLO_STD if x_g < conf['pos_puerta'] else x_g + GONDOLA_PROF
-                    dibujar(pas_x, y_inicio_g, PASILLO_STD, largo_g + CABECERA_PROF*2, '#EBEDEF', ec='none', alpha=0.6, texto='PASILLO GÓNDOLAS', rot=90, color_txt='gray')
-                    obstaculos.append((x_g - PASILLO_STD, y_inicio_g - CABECERA_PROF, GONDOLA_PROF + PASILLO_STD*2, largo_g + CABECERA_PROF*2))
-                    area_exhibicion += GONDOLA_PROF * (largo_g + CABECERA_PROF*2)
-                    colocado = True
-                    trenes_colocados += 1
-                    break
-                x_g += 0.5 
-            if colocado: x_g += GONDOLA_PROF + PASILLO_STD
-        if trenes_colocados < conf['cant_trenes']: errores.append(f"Solo caben {trenes_colocados} de {conf['cant_trenes']} trenes.")
+            if conf['rot_gon'] == 'Vertical':
+                registrar_obj(xg, yg, GONDOLA_PROF, CABECERA_PROF, '#E74C3C', "CAB", font=4, name=f"Cab Sur {i+1}")
+                if conf['sep_cab']: registrar_obj(xg, yg + CABECERA_PROF + 0.6, GONDOLA_PROF, largo_g - 1.2, '#ABB2B9', "TRAMOS", name=f"Cuerpo {i+1}")
+                else: 
+                    for t in range(tramos): registrar_obj(xg, yg + CABECERA_PROF + (t*MOD_3FT), GONDOLA_PROF, MOD_3FT, '#ABB2B9', f"Tr{t+1}", font=5, name=f"Tr{t+1} Tren{i+1}")
+                registrar_obj(xg, yg + CABECERA_PROF + largo_g, GONDOLA_PROF, CABECERA_PROF, '#E74C3C', "CAB", font=4, name=f"Cab Norte {i+1}")
+                
+                if conf['t_pasillos']: registrar_obj(xg + GONDOLA_PROF, yg, conf['pas_gon'], largo_g + CABECERA_PROF*2, '#EBEDEF', "PASILLO GONDOLAS", rot=90, alpha=0.6, is_obs=True, name=f"Pasillo Gon {i+1}")
+                xg += GONDOLA_PROF + conf['pas_gon']
+            else: # Horizontal
+                registrar_obj(xg, yg, CABECERA_PROF, GONDOLA_PROF, '#E74C3C', "CAB", rot=90, font=4, name=f"Cab Oeste {i+1}")
+                if conf['sep_cab']: registrar_obj(xg + CABECERA_PROF + 0.6, yg, largo_g - 1.2, GONDOLA_PROF, '#ABB2B9', "TRAMOS", rot=90, name=f"Cuerpo {i+1}")
+                else:
+                    for t in range(tramos): registrar_obj(xg + CABECERA_PROF + (t*MOD_3FT), yg, MOD_3FT, GONDOLA_PROF, '#ABB2B9', f"Tr{t+1}", rot=90, font=5, name=f"Tr{t+1} Tren{i+1}")
+                registrar_obj(xg + CABECERA_PROF + largo_g, yg, CABECERA_PROF, GONDOLA_PROF, '#E74C3C', "CAB", rot=90, font=4, name=f"Cab Este {i+1}")
+                
+                if conf['t_pasillos']: registrar_obj(xg, yg + GONDOLA_PROF, largo_g + CABECERA_PROF*2, conf['pas_gon'], '#EBEDEF', "PASILLO GONDOLAS", alpha=0.6, is_obs=True, name=f"Pasillo Gon {i+1}")
+                yg += GONDOLA_PROF + conf['pas_gon']
+            area_exh += GONDOLA_PROF * (largo_g + CABECERA_PROF*2)
 
     # ==========================================
-    # 5. CAFÉ
+    # 6. FOODVENIENCE (CAFÉ)
     # ==========================================
-    if conf['t_cafe'] and conf['t_gondolas']:
-        ancho_cafe = conf['cant_cafe'] * MOD_2FT
-        x_cafe = 0 if conf['loc_check'] == 'Esquina Inferior Derecha' else W - ancho_cafe
-        y_cafe = 0
-        if colisiona(x_cafe, y_cafe, ancho_cafe, PROF_CAFE + PASILLO_STD, obstaculos): errores.append("Área de café bloqueada.")
-        else:
-            for i in range(conf['cant_cafe']): dibujar(x_cafe + (i*MOD_2FT), y_cafe, MOD_2FT, PROF_CAFE, '#FAD7A0', texto=f'C{i+1}')
-            dibujar(x_cafe, PROF_CAFE, ancho_cafe, PASILLO_STD, '#FADBD8', ec='none', alpha=0.5, texto='PASILLO CAFÉ', color_txt='#E74C3C')
-            obstaculos.append((x_cafe, y_cafe, ancho_cafe, PROF_CAFE + PASILLO_STD))
-            area_exhibicion += (ancho_cafe * PROF_CAFE)
+    if conf['t_cafe']:
+        x_c, y_c = conf['pos_cafe_x'], conf['pos_cafe_y']
+        mods = conf['cant_cafe']
+        if conf['forma_cafe'] == 'Lineal':
+            for i in range(mods): registrar_obj(x_c + (i*MOD_2FT), y_c, MOD_2FT, PROF_CAFE, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
+            if conf['t_pasillos']: registrar_obj(x_c, y_c + PROF_CAFE, mods*MOD_2FT, PASILLO_STD, '#FADBD8', "PASILLO CAFE", alpha=0.5, is_obs=True, name="Pasillo Cafe", txt_col='#E74C3C')
+            area_exh += (mods * MOD_2FT * PROF_CAFE)
+        else: # Escuadra
+            mods_x = int(mods / 2)
+            mods_y = mods - mods_x
+            registrar_obj(x_c, y_c, mods_x*MOD_2FT, PROF_CAFE, '#FAD7A0', "CAFE H", name="Cafe Horiz")
+            registrar_obj(x_c, y_c + PROF_CAFE, PROF_CAFE, mods_y*MOD_2FT, '#FAD7A0', "CAFE V", rot=90, name="Cafe Vert")
+            registrar_obj(x_c, y_c, PROF_CAFE, PROF_CAFE, '#E59866', "X", name="Cafe Pivote") # Pivote
+            area_exh += (mods * MOD_2FT * PROF_CAFE)
 
     # ==========================================
-    # 6. PERIMETRALES
+    # 7. PERIMETRALES E ISLAS
     # ==========================================
-    if conf['t_perimetral'] and conf['t_cafe']:
-        tramos_peri = 0
-        def colocar_muro(x_base, y_base, largo_muro, vertical=True):
-            nonlocal tramos_peri
-            for i in range(int(largo_muro / MOD_1FT)):
-                cx = x_base if vertical else x_base + (i*MOD_1FT)
-                cy = y_base + (i*MOD_1FT) if vertical else y_base
-                cw = PROF_PERIMETRO if vertical else MOD_1FT
-                ch = MOD_1FT if vertical else PROF_PERIMETRO
-                if not colisiona(cx, cy, cw, ch, obstaculos):
-                    dibujar(cx, cy, cw, ch, '#D5DBDB', ec='gray', texto='P', fontsize=4, rot=0 if vertical else 90)
-                    tramos_peri += 1
+    if conf['t_perimetral']:
+        # Algoritmo de auto-relleno simplificado
+        for y in range(int(L)):
+            if not colisiona(0, y, PROF_PERIMETRO, MOD_1FT, obstaculos)[0]: registrar_obj(0, y, PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", font=4, rot=90, name=f"Perim Izq {y}")
+            if not colisiona(W - PROF_PERIMETRO, y, PROF_PERIMETRO, MOD_1FT, obstaculos)[0]: registrar_obj(W - PROF_PERIMETRO, y, PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", font=4, rot=90, name=f"Perim Der {y}")
 
-        colocar_muro(0, 0, L, vertical=True) 
-        colocar_muro(W - PROF_PERIMETRO, 0, L, vertical=True) 
-        colocar_muro(0, L - PROF_PERIMETRO, W, vertical=False)
-        area_exhibicion += (tramos_peri * MOD_1FT * PROF_PERIMETRO)
-
-    # ==========================================
-    # 7. ISLAS
-    # ==========================================
-    if conf['t_islas'] and conf['t_perimetral']:
+    if conf['t_islas']:
         islas_ok = 0
-        for y_isla in range(2, int(L)-2): 
-            for x_isla in range(1, int(W)-1):
+        gx = 2 if conf['grupo_islas'] in ['2x1', '2x2'] else 1
+        gy = 2 if conf['grupo_islas'] == '2x2' else 1
+        dim_x, dim_y = ISLA_DIM * gx, ISLA_DIM * gy
+        
+        for yi in range(1, int(L)-1):
+            for xi in range(1, int(W)-1):
                 if islas_ok >= conf['cant_islas']: break
-                if not colisiona(x_isla, y_isla, ISLA_DIM, ISLA_DIM, obstaculos):
-                    dibujar(x_isla, y_isla, ISLA_DIM, ISLA_DIM, '#F4D03F', texto=f'E{islas_ok+1}')
-                    obstaculos.append((x_isla - 0.2, y_isla - 0.2, ISLA_DIM + 0.4, ISLA_DIM + 0.4))
+                if not colisiona(xi, yi, dim_x, dim_y, obstaculos)[0]:
+                    registrar_obj(xi, yi, dim_x, dim_y, '#F4D03F', f"ISLA {islas_ok+1}", font=5, name=f"Isla {islas_ok+1}")
                     islas_ok += 1
-        area_exhibicion += (islas_ok * ISLA_DIM * ISLA_DIM)
+        area_exh += (islas_ok * dim_x * dim_y)
 
-    # Cálculos Finales y Formato
-    pct_exh = (area_exhibicion / area_comercial) * 100 if area_comercial > 0 else 0
+    pct_exh = (area_exh / area_comercial) * 100 if area_comercial > 0 else 0
     pct_nav = 100 - pct_exh
-    formato_oxxo = clasificar_formato(area_total)
-
+    
     ax.set_aspect('equal')
-    plt.title(f"Layout OXXO | Formato: {formato_oxxo}")
-    return fig, errores, pct_exh, pct_nav, area_total, formato_oxxo
+    plt.title(f"Store Planning OXXO V20.0 | Formato: {clasificar_formato(area_total)}")
+    return fig, errores, pct_exh, pct_nav, area_total, area_comercial
 
 # --- INTERFAZ STREAMLIT ---
 st.set_page_config(layout="wide")
-st.title("🏬 Store Planning OXXO V18.0")
 
-# --- SECCIÓN DE INFORMACIÓN (ACORDEÓN) ---
-with st.expander("ℹ️ Información y Reglas del Sistema Store Planning OXXO", expanded=False):
-    st.markdown("""
-    **Balanceo de Áreas:** El código respeta la regla de distribución de espacio que dicta que aproximadamente el **20%** se destina a Espacios Operativos y el **80%** a Espacios Comerciales. Dentro del área comercial, se calcula un **40% para exhibición** (garantizando rentabilidad sin saturar) y un **60% para navegación** (asegurando una buena experiencia del consumidor).
+# --- DASHBOARD LATERAL ---
+with st.sidebar:
+    st.title("🏬 Store Planning OXXO V20")
+    st.markdown("### 📊 Auditoría Oficial M2")
     
-    **Matriz de Formatos:** La función agrupa la tienda en categorías como "Compactos", "Reducidos" y "Ordinarios" dependiendo del rango exacto de m2 estipulado en la matriz oficial. Por ejemplo, de 99 a 117 m2 se considera formato **REGULAR**.
+    ancho = st.number_input("Ancho (m)", 5.0, 20.0, 12.0, 0.5)
+    largo = st.number_input("Profundidad (m)", 5.0, 20.0, 15.0, 0.5)
     
-    **Los 4 Elementos Cardinales:** Se extrajeron las condicionantes de ubicación estrictas: 
-    1. El **Acceso** es el punto de partida.
-    2. El **Check out** debe estar lo más cerca del acceso.
-    3. El área **Operativa** no debe dejar espacios muertos.
-    4. El **Cuarto Frío** debe ir perimetral y lo más alejado de la entrada (Destino).
+    a_tot = ancho * largo
+    a_op = a_tot * 0.20
+    a_com = a_tot * 0.80
     
-    **Landscaping (Jerarquía Visual):** Se implementó la regla *"primero lo más bajo y al fondo lo más alto"* para definir las alturas máximas permitidas de acuerdo a la distancia desde el umbral (desde 3.5 ft en el acceso hasta 7 ft en el muro perimetral más lejano).
-    """)
-
-col_params, col_plot = st.columns([1.2, 2.8])
-
-with col_params:
-    st.header("1. Huella del Local")
-    ancho = st.number_input("Ancho (m)", min_value=5.0, max_value=20.0, value=12.0, step=0.5)
-    largo = st.number_input("Profundidad (m)", min_value=5.0, max_value=20.0, value=15.0, step=0.5)
+    st.write(f"**Total:** {a_tot:.1f} m² | `{clasificar_formato(a_tot)}`")
+    st.caption(f"80% Comercial ({a_com:.1f} m²) | 20% Operativo ({a_op:.1f} m²)")
+    
+    kpi_col1, kpi_col2 = st.columns(2)
+    kpi_exh = kpi_col1.empty()
+    kpi_nav = kpi_col2.empty()
     
     st.markdown("---")
-    st.write("🔧 **Constructor de Layout**")
-    
-    t_puerta = st.toggle("1. Activar Acceso")
-    muro, pos_puerta = 'Inferior (Frente)', 0.0
-    if t_puerta:
-        muro = st.selectbox("¿En qué muro está la puerta?", ['Inferior (Frente)', 'Lateral Izquierdo', 'Lateral Derecho'])
-        max_pos = ancho - PUERTA_ANCHO if muro == 'Inferior (Frente)' else largo - PUERTA_ANCHO
-        pos_puerta = st.slider("Posición en muro", 0.0, float(max_pos), float(max_pos/2))
-    
-    t_check, loc_check, cant_check = False, "", 0
-    if t_puerta:
-        t_check = st.toggle("2. Activar Checkout")
-        if t_check:
-            loc_check = st.selectbox("Esquina Anclaje", ['Esquina Inferior Derecha', 'Esquina Inferior Izquierda'])
-            cant_check = st.slider("Módulos Checkout", 1, 5, 3)
+    st.write("🕹️ **Panel de Control Paramétrico**")
 
-    t_frio, loc_frio, forma_frio, cant_frio = False, "", "", 0
-    if t_check:
-        t_frio = st.toggle("3. Activar Cuarto Frío")
-        if t_frio:
-            loc_frio = st.selectbox("Esquina Destino", ['Fondo Derecha', 'Fondo Izquierda'])
-            forma_frio = st.radio("Formato", ['Lineal', 'Escuadra'], horizontal=True)
-            cant_frio = st.slider("Puertas Frío", 2, 20, 8)
+col_controles, col_plot = st.columns([1.5, 2.5])
 
-    t_gondolas, cant_trenes, cant_tramos = False, 0, 0
-    if t_frio:
-        t_gondolas = st.toggle("4. Activar Góndolas")
-        if t_gondolas:
-            cant_trenes = st.slider("Trenes Centrales", 1, 4, 2)
-            cant_tramos = st.slider("Tramos por tren", 1, 6, 3)
+with col_controles:
+    with st.expander("1. Acceso y Puertas", expanded=False):
+        t_puerta = st.checkbox("Habilitar Acceso", value=True)
+        tipo_puerta = st.selectbox("Tipo", ['1 Puerta (90cm)', '2 Puertas (180cm)'], index=1)
+        muro_puerta = st.selectbox("Muro", ['Sur', 'Norte', 'Este', 'Oeste'])
+        pos_puerta_x = st.number_input("Posición X", 0.0, float(ancho), 5.0, 0.1)
+        pos_puerta_y = st.number_input("Posición Y (Si está en Este/Oeste)", 0.0, float(largo), 0.0, 0.1)
 
-    t_cafe, cant_cafe = False, 0
-    if t_gondolas:
-        t_cafe = st.toggle("5. Activar Café")
-        if t_cafe:
-            cant_cafe = st.slider("Módulos Café", 2, 10, 4)
+    with st.expander("2. Bodega Operativa (20%)", expanded=False):
+        t_bodega = st.checkbox("Habilitar Bodega", value=True)
+        loc_bodega = st.selectbox("Ubicación", ['Fondo (Norte)', 'Frente (Sur)', 'Lateral Izq (Oeste)', 'Lateral Der (Este)'])
 
-    t_perimetral = False
-    if t_cafe:
-        t_perimetral = st.toggle("6. Activar Perimetrales")
+    with st.expander("3. Red de Pasillos (Zonas Seguras)", expanded=False):
+        t_pasillos = st.checkbox("Habilitar Pasillos", value=True)
+        pas_poder = st.slider("Ancho Pasillo Poder", 0.9, 2.5, 1.8)
+        pas_peri = st.slider("Ancho Pasillos Perimetrales", 0.9, 1.5, 1.2)
+        pas_bod = st.slider("Ancho Pasillo Bodega", 0.8, 1.5, 1.0)
+        if st.button("🚨 Validar Vías de Circulación"): st.warning("Motor de colisión activo: Verifique alertas en rojo bajo el plano.")
 
-    t_islas, cant_islas = False, 0
-    if t_perimetral:
-        t_islas = st.toggle("7. Activar Islas")
-        if t_islas:
-            cant_islas = st.slider("Islas (60x60cm)", 1, 20, 4)
+    with st.expander("4. Checkout (Control X/Y)", expanded=False):
+        t_check = st.checkbox("Habilitar Checkout", value=True)
+        cant_check = st.slider("Módulos", 2, 7, 3)
+        rot_check = st.selectbox("Rotación (°)", [0, 90, 180, 270])
+        pos_chk_x = st.number_input("Check Pos X", 0.0, float(ancho), ancho - (cant_check*MOD_2FT), 0.1)
+        pos_chk_y = st.number_input("Check Pos Y", 0.0, float(largo), 0.0, 0.1)
+
+    with st.expander("5. Cuarto Frío", expanded=False):
+        t_frio = st.checkbox("Habilitar Cuarto Frío", value=True)
+        forma_frio = st.radio("Formato Frío", ['Lineal', 'Escuadra'])
+        cant_frio = st.slider("Puertas", 2, 20, 8)
+        pos_frio_x = st.number_input("Frío Pos X", 0.0, float(ancho), 0.0, 0.1)
+        pos_frio_y = st.number_input("Frío Pos Y", 0.0, float(largo), largo - PROF_FRIO, 0.1)
+
+    with st.expander("6. Góndolas Centrales", expanded=False):
+        t_gondolas = st.checkbox("Habilitar Góndolas", value=True)
+        rot_gon = st.radio("Orientación", ['Vertical', 'Horizontal'])
+        sep_cab = st.checkbox("Separar cabeceras (Dejar hueco)")
+        cant_trenes = st.slider("Trenes", 1, 6, 2)
+        cant_tramos = st.slider("Tramos", 1, 8, 3)
+        pas_gon = st.slider("Pasillo entre góndolas", 0.9, 1.5, 1.2)
+        pos_gon_x = st.number_input("Góndola Pos X", 0.0, float(ancho), 4.0, 0.1)
+        pos_gon_y = st.number_input("Góndola Pos Y", 0.0, float(largo), 4.0, 0.1)
+
+    with st.expander("7. Foodvenience", expanded=False):
+        t_cafe = st.checkbox("Habilitar Foodvenience", value=True)
+        forma_cafe = st.radio("Formato Café", ['Lineal', 'Escuadra'])
+        cant_cafe = st.slider("Módulos Café", 2, 10, 4)
+        pos_cafe_x = st.number_input("Café Pos X", 0.0, float(ancho), 0.0, 0.1)
+        pos_cafe_y = st.number_input("Café Pos Y", 0.0, float(largo), 0.0, 0.1)
+
+    with st.expander("8. Góndola Perimetral e Islas", expanded=False):
+        t_perimetral = st.checkbox("Habilitar Perimetrales Auto", value=True)
+        t_islas = st.checkbox("Habilitar Islas Auto", value=True)
+        cant_islas = st.slider("Cantidad de agrupaciones", 1, 20, 4)
+        grupo_islas = st.selectbox("Agrupación Islas", ['1x1', '2x1', '2x2'])
 
 conf = {
-    'ancho': ancho, 'largo': largo, 'muro_puerta': muro,
-    't_puerta': t_puerta, 'pos_puerta': pos_puerta,
-    't_check': t_check, 'loc_check': loc_check, 'cant_check': cant_check,
-    't_frio': t_frio, 'loc_frio': loc_frio, 'forma_frio': forma_frio, 'cant_frio': cant_frio,
-    't_gondolas': t_gondolas, 'cant_trenes': cant_trenes, 'cant_tramos': cant_tramos,
-    't_cafe': t_cafe, 'cant_cafe': cant_cafe,
-    't_perimetral': t_perimetral,
-    't_islas': t_islas, 'cant_islas': cant_islas
+    'ancho': ancho, 'largo': largo, 
+    't_puerta': t_puerta, 'tipo_puerta': tipo_puerta, 'muro_puerta': muro_puerta, 'pos_puerta_x': pos_puerta_x, 'pos_puerta_y': pos_puerta_y,
+    't_bodega': t_bodega, 'loc_bodega': loc_bodega, 'pas_bod': pas_bod,
+    't_pasillos': t_pasillos, 'pas_poder': pas_poder, 'pas_peri': pas_peri,
+    't_check': t_check, 'rot_check': rot_check, 'cant_check': cant_check, 'pos_chk_x': pos_chk_x, 'pos_chk_y': pos_chk_y,
+    't_frio': t_frio, 'forma_frio': forma_frio, 'cant_frio': cant_frio, 'pos_frio_x': pos_frio_x, 'pos_frio_y': pos_frio_y,
+    't_gondolas': t_gondolas, 'rot_gon': rot_gon, 'sep_cab': sep_cab, 'cant_trenes': cant_trenes, 'cant_tramos': cant_tramos, 'pas_gon': pas_gon, 'pos_gon_x': pos_gon_x, 'pos_gon_y': pos_gon_y,
+    't_cafe': t_cafe, 'forma_cafe': forma_cafe, 'cant_cafe': cant_cafe, 'pos_cafe_x': pos_cafe_x, 'pos_cafe_y': pos_cafe_y,
+    't_perimetral': t_perimetral, 't_islas': t_islas, 'cant_islas': cant_islas, 'grupo_islas': grupo_islas
 }
 
 with col_plot:
-    fig, errores, pct_exh, pct_nav, a_total, formato = dibujar_layout_oxxo(conf)
+    fig, errores, pct_exh, pct_nav, a_tot, a_com = dibujar_layout_oxxo_v20(conf)
     st.pyplot(fig)
     
     if errores:
-        st.error("🚨 **Advertencias de Colisión:**")
+        st.error("🚨 **Motor de Colisiones Activo:**")
         for err in errores: st.warning(f"• {err}")
-    
-    if t_puerta:
-        st.markdown("---")
-        st.subheader("📊 Matriz de Distribución Espacial OXXO")
-        st.write(f"**M2 Totales:** {a_total:.1f} m² | **Formato Asignado:** `{formato}`")
-        
-        col_kpi1, col_kpi2 = st.columns(2)
-        with col_kpi1:
-            st.metric("Rentabilidad (Exhibición)", f"{pct_exh:.1f}%")
-            if 30 <= pct_exh <= 40: st.success("✅ ACEPTADO (30-40%)")
-            elif pct_exh < 30: st.info("📉 FALTA MOBILIARIO")
-            else: st.error("❌ SATURADO")
-                
-        with col_kpi2:
-            st.metric("Experiencia (Navegación)", f"{pct_nav:.1f}%")
-            if 60 <= pct_nav <= 70: st.success("✅ ACEPTADO (60-70%)")
-            elif pct_nav > 70: st.info("📉 ESPACIO MUERTO")
-            else: st.error("❌ PASILLOS BLOQUEADOS")
+
+# Update Dashboard KPIs
+kpi_exh.metric("Rentabilidad (30-40%)", f"{pct_exh:.1f}%", "Aceptado" if 30 <= pct_exh <= 40 else "Revisar")
+kpi_nav.metric("Experiencia (60-70%)", f"{pct_nav:.1f}%", "Aceptado" if 60 <= pct_nav <= 70 else "Revisar")
