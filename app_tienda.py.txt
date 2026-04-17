@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.ticker import MultipleLocator
 
-# --- CONSTANTES DE MODULACIÓN ---
+# --- CONSTANTES DE MODULACIÓN EXACTA ---
 MOD_1FT = 0.30
 MOD_2FT = 0.61        
 MOD_3FT = 0.91        
@@ -15,8 +15,8 @@ PROF_FRIO = 2.00
 PROF_PERIMETRO = 0.45 
 GONDOLA_PROF = 0.90   
 CABECERA_PROF = 0.45  
-PUERTA_ANCHO = 1.80    # Restaurado
-PASILLO_STD = 1.20     # Restaurado
+PUERTA_ANCHO = 1.80    # Variable restaurada
+PASILLO_STD = 1.20     # Variable restaurada
 ISLA_DIM = 0.60
 
 # --- CLASIFICADOR DE MATRIZ DE FORMATOS OXXO ---
@@ -296,12 +296,8 @@ def dibujar_layout_oxxo(conf):
 # --- INTERFAZ STREAMLIT ---
 st.set_page_config(layout="wide")
 
-# ==========================================
-# DASHBOARD PERMANENTE (Barra Lateral)
-# ==========================================
 with st.sidebar:
     st.title("🏬 Store Planning OXXO")
-    
     st.markdown("### 📊 Dashboard de M2 y KPIs")
     
     ancho = st.number_input("Ancho (m)", 5.0, 20.0, 12.0, 0.5, key='ancho')
