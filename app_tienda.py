@@ -46,7 +46,7 @@ def normalizar_rotacion(r):
     if 90 < r < 270: r -= 180
     return r
 
-def dibujar_layout_oxxo_v23(conf):
+def dibujar_layout_oxxo_v24(conf):
     W, L = conf['ancho'], conf['largo']
 
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -64,31 +64,38 @@ def dibujar_layout_oxxo_v23(conf):
     errores = []
     area_exh = 0
     
-    def registrar_obj(x, y, w, h, color, texto="", rot=0, alpha=1.0, font=6, z=5, tipo="Fisico", name="Objeto", txt_col='black', weight='normal'):
-        if rot in [90, 270, -90]: w, h = h, w
-        
+    def registrar_obj(x, y, w, h, color, texto="", rot_text=0, alpha=1.0, font=6, z=5, tipo="Fisico", name="Objeto", txt_col='black', weight='normal'):
         choca = False
         obj_chocado = ""
-        
-        if tipo == "Fisico":
-            c1, n1 = colisiona(x, y, w, h, obs_fisicos)
-            c2, n2 = colisiona(x, y, w, h, obs_pasillos)
-            if c1: choca, obj_chocado = True, n1
-            elif c2: choca, obj_chocado = True, n2
-        elif tipo == "Pasillo":
-            choca, obj_chocado = colisiona(x, y, w, h, obs_fisicos)
+        ec = 'black'
+        lw = 1
 
-        if choca: 
-            errores.append(f"{name} colisiona o bloquea a {obj_chocado}.")
+        # 1. Validar si está fuera del layout
+        if x < -0.05 or y < -0.05 or x + w > W + 0.05 or y + h > L + 0.05:
+            errores.append(f"Mobiliario fuera de layout: {name}")
             ec, lw = 'red', 2
+            choca = True
         else:
-            if tipo == "Fisico": obs_fisicos.append((x, y, w, h, name))
-            elif tipo == "Pasillo": obs_pasillos.append((x, y, w, h, name))
-            ec, lw = ('black', 1) if tipo == "Fisico" else ('none', 0)
+            # 2. Validar colisiones internas
+            if tipo == "Fisico":
+                c1, n1 = colisiona(x, y, w, h, obs_fisicos)
+                c2, n2 = colisiona(x, y, w, h, obs_pasillos)
+                if c1: choca, obj_chocado = True, n1
+                elif c2: choca, obj_chocado = True, n2
+            elif tipo == "Pasillo":
+                choca, obj_chocado = colisiona(x, y, w, h, obs_fisicos)
+                ec, lw = 'none', 0
+
+            if choca and obj_chocado: 
+                errores.append(f"{name} colisiona o bloquea a {obj_chocado}.")
+                ec, lw = 'red', 2
+            elif not choca:
+                if tipo == "Fisico": obs_fisicos.append((x, y, w, h, name))
+                elif tipo == "Pasillo": obs_pasillos.append((x, y, w, h, name))
 
         ax.add_patch(patches.Rectangle((x, y), w, h, color=color, ec=ec, lw=lw, alpha=alpha, zorder=z))
         if texto:
-            ax.text(x + w/2, y + h/2, texto, ha='center', va='center', rotation=normalizar_rotacion(rot), fontsize=font, color=txt_col, weight=weight, zorder=10)
+            ax.text(x + w/2, y + h/2, texto, ha='center', va='center', rotation=normalizar_rotacion(rot_text), fontsize=font, color=txt_col, weight=weight, zorder=10)
         return w, h
 
     # Lienzo Base
@@ -128,17 +135,18 @@ def dibujar_layout_oxxo_v23(conf):
         w_puerta = pw if conf['muro_puerta'] in ['Sur', 'Norte'] else 0.2
         h_puerta = 0.2 if conf['muro_puerta'] in ['Sur', 'Norte'] else pw
         registrar_obj(xp, yp, w_puerta, h_puerta, 'red', "ACCESO", font=5, txt_col='white', weight='bold', name="Acceso", z=11)
+        
         ax.add_patch(patches.Circle((xp + w_puerta/2, yp + h_puerta/2), 2.0, color='#85C1E9', alpha=0.2, zorder=1))
 
         if conf['t_pasillos']:
             wpod = conf['pas_poder']
-            if conf['muro_puerta'] == 'Sur': registrar_obj(xp - (wpod-pw)/2, yp, wpod, L - yp, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
-            elif conf['muro_puerta'] == 'Norte': registrar_obj(xp - (wpod-pw)/2, 0, wpod, yp, '#EBF5FB', "PASILLO DE PODER", rot=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
+            if conf['muro_puerta'] == 'Sur': registrar_obj(xp - (wpod-pw)/2, yp, wpod, L - yp, '#EBF5FB', "PASILLO DE PODER", rot_text=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
+            elif conf['muro_puerta'] == 'Norte': registrar_obj(xp - (wpod-pw)/2, 0, wpod, yp, '#EBF5FB', "PASILLO DE PODER", rot_text=90, alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
             elif conf['muro_puerta'] == 'Este': registrar_obj(0, yp - (wpod-pw)/2, xp, wpod, '#EBF5FB', "PASILLO DE PODER", alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
             elif conf['muro_puerta'] == 'Oeste': registrar_obj(xp, yp - (wpod-pw)/2, W - xp, wpod, '#EBF5FB', "PASILLO DE PODER", alpha=0.6, tipo="Pasillo", txt_col='#154360', weight='bold', name="Pasillo de Poder")
 
     # ==========================================
-    # 3. CHECKOUT
+    # 3. CHECKOUT (Rotación en Bloque)
     # ==========================================
     if conf['t_check']:
         mods_chk = conf['cant_check']
@@ -146,36 +154,36 @@ def dibujar_layout_oxxo_v23(conf):
         rot_c = conf['rot_check']
         w_chk = mods_chk * MOD_2FT
         
-        if rot_c == 0: 
+        if rot_c == 0: # Contracaja abajo, Cajas arriba
             registrar_obj(xc, yc, w_chk, PROF_CONTRA, '#82E0AA', "C.CAJA", name="Contracaja")
             registrar_obj(xc, yc + PROF_CONTRA, w_chk, PROF_CAJERO, '#EAEDED', "P. CAJERO", tipo="Pasillo", name="Pasillo Cajero")
             for i in range(mods_chk): registrar_obj(xc + (i*MOD_2FT), yc + PROF_CONTRA + PROF_CAJERO, MOD_2FT, PROF_CHECK, '#ABEBC6', f"CHK{i+1}", font=5, name=f"CHK{i+1}")
             if conf['t_pasillos']: registrar_obj(xc, yc + PROF_CONTRA + PROF_CAJERO + PROF_CHECK, w_chk, PASILLO_STD, '#D5F5E3', "PASILLO COBRO", alpha=0.5, tipo="Pasillo", name="Pasillo Cobro")
             area_exh += (w_chk * PROF_CHECK)
             
-        elif rot_c == 90: 
-            registrar_obj(xc, yc, PROF_CONTRA, w_chk, '#82E0AA', "C.CAJA", rot=90, name="Contracaja")
-            registrar_obj(xc + PROF_CONTRA, yc, PROF_CAJERO, w_chk, '#EAEDED', "P. CAJERO", rot=90, tipo="Pasillo", name="Pasillo Cajero")
-            for i in range(mods_chk): registrar_obj(xc + PROF_CONTRA + PROF_CAJERO, yc + (i*MOD_2FT), PROF_CHECK, MOD_2FT, '#ABEBC6', f"CHK{i+1}", font=5, rot=90, name=f"CHK{i+1}")
-            if conf['t_pasillos']: registrar_obj(xc + PROF_CONTRA + PROF_CAJERO + PROF_CHECK, yc, PASILLO_STD, w_chk, '#D5F5E3', "PASILLO COBRO", rot=90, alpha=0.5, tipo="Pasillo", name="Pasillo Cobro")
+        elif rot_c == 90: # Contracaja derecha, Cajas Izquierda
+            registrar_obj(xc + PROF_CHECK + PROF_CAJERO, yc, PROF_CONTRA, w_chk, '#82E0AA', "C.CAJA", rot_text=90, name="Contracaja")
+            registrar_obj(xc + PROF_CHECK, yc, PROF_CAJERO, w_chk, '#EAEDED', "P. CAJERO", rot_text=90, tipo="Pasillo", name="Pasillo Cajero")
+            for i in range(mods_chk): registrar_obj(xc, yc + (i*MOD_2FT), PROF_CHECK, MOD_2FT, '#ABEBC6', f"CHK{i+1}", font=5, rot_text=90, name=f"CHK{i+1}")
+            if conf['t_pasillos']: registrar_obj(xc - PASILLO_STD, yc, PASILLO_STD, w_chk, '#D5F5E3', "PASILLO COBRO", rot_text=90, alpha=0.5, tipo="Pasillo", name="Pasillo Cobro")
             area_exh += (w_chk * PROF_CHECK)
             
-        elif rot_c == 180: 
-            if conf['t_pasillos']: registrar_obj(xc, yc, w_chk, PASILLO_STD, '#D5F5E3', "PASILLO COBRO", alpha=0.5, tipo="Pasillo", name="Pasillo Cobro")
-            for i in range(mods_chk): registrar_obj(xc + (i*MOD_2FT), yc + PASILLO_STD, MOD_2FT, PROF_CHECK, '#ABEBC6', f"CHK{i+1}", font=5, name=f"CHK{i+1}")
-            registrar_obj(xc, yc + PASILLO_STD + PROF_CHECK, w_chk, PROF_CAJERO, '#EAEDED', "P. CAJERO", tipo="Pasillo", name="Pasillo Cajero")
-            registrar_obj(xc, yc + PASILLO_STD + PROF_CHECK + PROF_CAJERO, w_chk, PROF_CONTRA, '#82E0AA', "C.CAJA", name="Contracaja")
+        elif rot_c == 180: # Contracaja arriba, Cajas Abajo
+            if conf['t_pasillos']: registrar_obj(xc, yc - PASILLO_STD, w_chk, PASILLO_STD, '#D5F5E3', "PASILLO COBRO", alpha=0.5, tipo="Pasillo", name="Pasillo Cobro")
+            for i in range(mods_chk): registrar_obj(xc + (i*MOD_2FT), yc, MOD_2FT, PROF_CHECK, '#ABEBC6', f"CHK{i+1}", font=5, name=f"CHK{i+1}")
+            registrar_obj(xc, yc + PROF_CHECK, w_chk, PROF_CAJERO, '#EAEDED', "P. CAJERO", tipo="Pasillo", name="Pasillo Cajero")
+            registrar_obj(xc, yc + PROF_CHECK + PROF_CAJERO, w_chk, PROF_CONTRA, '#82E0AA', "C.CAJA", name="Contracaja")
             area_exh += (w_chk * PROF_CHECK)
             
-        elif rot_c == 270: 
-            if conf['t_pasillos']: registrar_obj(xc, yc, PASILLO_STD, w_chk, '#D5F5E3', "PASILLO COBRO", rot=90, alpha=0.5, tipo="Pasillo", name="Pasillo Cobro")
-            for i in range(mods_chk): registrar_obj(xc + PASILLO_STD, yc + (i*MOD_2FT), PROF_CHECK, MOD_2FT, '#ABEBC6', f"CHK{i+1}", font=5, rot=90, name=f"CHK{i+1}")
-            registrar_obj(xc + PASILLO_STD + PROF_CHECK, yc, PROF_CAJERO, w_chk, '#EAEDED', "P. CAJERO", rot=90, tipo="Pasillo", name="Pasillo Cajero")
-            registrar_obj(xc + PASILLO_STD + PROF_CHECK + PROF_CAJERO, yc, PROF_CONTRA, w_chk, '#82E0AA', "C.CAJA", rot=90, name="Contracaja")
+        elif rot_c == 270: # Contracaja izquierda, Cajas Derecha
+            registrar_obj(xc, yc, PROF_CONTRA, w_chk, '#82E0AA', "C.CAJA", rot_text=90, name="Contracaja")
+            registrar_obj(xc + PROF_CONTRA, yc, PROF_CAJERO, w_chk, '#EAEDED', "P. CAJERO", rot_text=90, tipo="Pasillo", name="Pasillo Cajero")
+            for i in range(mods_chk): registrar_obj(xc + PROF_CONTRA + PROF_CAJERO, yc + (i*MOD_2FT), PROF_CHECK, MOD_2FT, '#ABEBC6', f"CHK{i+1}", font=5, rot_text=90, name=f"CHK{i+1}")
+            if conf['t_pasillos']: registrar_obj(xc + PROF_CONTRA + PROF_CAJERO + PROF_CHECK, yc, PASILLO_STD, w_chk, '#D5F5E3', "PASILLO COBRO", rot_text=90, alpha=0.5, tipo="Pasillo", name="Pasillo Cobro")
             area_exh += (w_chk * PROF_CHECK)
 
     # ==========================================
-    # 4. CUARTO FRÍO (Modulado 2ft x 2m y Escuadra Rotable)
+    # 4. CUARTO FRÍO (Puertas exactas y Rotación L)
     # ==========================================
     if conf['t_frio']:
         xf, yf = conf['pos_frio_x'], conf['pos_frio_y']
@@ -183,66 +191,55 @@ def dibujar_layout_oxxo_v23(conf):
         
         if conf['forma_frio'] == 'Lineal':
             ptas = conf['cant_frio']
-            for i in range(ptas):
-                if rot_f == 0: 
-                    mx, my, dx, dy, dw, dh = xf + i*MOD_2FT, yf, xf + i*MOD_2FT, yf, MOD_2FT, 0.15
-                elif rot_f == 90: 
-                    mx, my, dx, dy, dw, dh = xf, yf + i*MOD_2FT, xf + PROF_FRIO - 0.15, yf + i*MOD_2FT, 0.15, MOD_2FT
-                elif rot_f == 180: 
-                    mx, my, dx, dy, dw, dh = xf - (i+1)*MOD_2FT, yf - PROF_FRIO, xf - (i+1)*MOD_2FT, yf - 0.15, MOD_2FT, 0.15
-                elif rot_f == 270: 
-                    mx, my, dx, dy, dw, dh = xf - PROF_FRIO, yf - (i+1)*MOD_2FT, xf - PROF_FRIO, yf - (i+1)*MOD_2FT, 0.15, MOD_2FT
-                
-                # Módulo y Puerta (Sin rotación interna de registrar_obj porque ya calculamos w/h)
-                registrar_obj(mx, my, MOD_2FT if rot_f in [0,180] else PROF_FRIO, PROF_FRIO if rot_f in [0,180] else MOD_2FT, '#AED6F1', f"CF{i+1}", font=5, name=f"Frio {i+1}")
-                registrar_obj(dx, dy, dw, dh, '#2874A6', name=f"Pta {i+1}")
-            
-            # Pasillo Lineal
-            if conf['t_pasillos']:
-                wf = ptas * MOD_2FT
-                if rot_f == 0: registrar_obj(xf, yf - PASILLO_STD, wf, PASILLO_STD, '#FCF3CF', "P. FRÍO", alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
-                elif rot_f == 90: registrar_obj(xf + PROF_FRIO, yf, PASILLO_STD, wf, '#FCF3CF', "P. FRÍO", rot=90, alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
-                elif rot_f == 180: registrar_obj(xf - wf, yf, wf, PASILLO_STD, '#FCF3CF', "P. FRÍO", alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
-                elif rot_f == 270: registrar_obj(xf - PROF_FRIO - PASILLO_STD, yf - wf, PASILLO_STD, wf, '#FCF3CF', "P. FRÍO", rot=90, alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
-            area_exh += (ptas * MOD_2FT * PROF_FRIO)
-
-        else: # Escuadra Modulada
-            registrar_obj(xf, yf, PROF_FRIO, PROF_FRIO, '#AED6F1', "CF Esq", weight='bold', name="CF Pivote") # Pivote
-            p1, p2 = conf['ptas_frio_1'], conf['ptas_frio_2']
-            
+            wf = ptas * MOD_2FT
             if rot_f == 0: 
-                for i in range(p1): 
-                    registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf, MOD_2FT, PROF_FRIO, '#AED6F1', f"L1-{i+1}", font=5, name=f"CF L1 {i+1}")
-                    registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf, MOD_2FT, 0.15, '#2874A6', name=f"Pta L1 {i+1}")
-                for i in range(p2): 
-                    registrar_obj(xf, yf + PROF_FRIO + i*MOD_2FT, PROF_FRIO, MOD_2FT, '#AED6F1', f"L2-{i+1}", font=5, name=f"CF L2 {i+1}")
-                    registrar_obj(xf + PROF_FRIO - 0.15, yf + PROF_FRIO + i*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L2 {i+1}")
+                registrar_obj(xf, yf, wf, PROF_FRIO, '#AED6F1', "CUARTO FRÍO", weight='bold', name="Frio")
+                for i in range(ptas): registrar_obj(xf + i*MOD_2FT, yf, MOD_2FT, 0.15, '#2874A6', f"P{i+1}", font=4, txt_col='white', name=f"Pta {i+1}")
+                if conf['t_pasillos']: registrar_obj(xf, yf - PASILLO_STD, wf, PASILLO_STD, '#FCF3CF', "PASILLO FRÍO", alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
             elif rot_f == 90:
-                for i in range(p1): 
-                    registrar_obj(xf, yf + PROF_FRIO + i*MOD_2FT, PROF_FRIO, MOD_2FT, '#AED6F1', f"L1-{i+1}", font=5, name=f"CF L1 {i+1}")
-                    registrar_obj(xf + PROF_FRIO - 0.15, yf + PROF_FRIO + i*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L1 {i+1}")
-                for i in range(p2):
-                    registrar_obj(xf - (i+1)*MOD_2FT, yf, MOD_2FT, PROF_FRIO, '#AED6F1', f"L2-{i+1}", font=5, name=f"CF L2 {i+1}")
-                    registrar_obj(xf - (i+1)*MOD_2FT, yf, MOD_2FT, 0.15, '#2874A6', name=f"Pta L2 {i+1}")
+                registrar_obj(xf, yf, PROF_FRIO, wf, '#AED6F1', "CUARTO FRÍO", rot_text=90, weight='bold', name="Frio")
+                for i in range(ptas): registrar_obj(xf + PROF_FRIO - 0.15, yf + i*MOD_2FT, 0.15, MOD_2FT, '#2874A6', f"P{i+1}", rot_text=90, font=4, txt_col='white', name=f"Pta {i+1}")
+                if conf['t_pasillos']: registrar_obj(xf + PROF_FRIO, yf, PASILLO_STD, wf, '#FCF3CF', "PASILLO FRÍO", rot_text=90, alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
             elif rot_f == 180:
-                for i in range(p1): 
-                    registrar_obj(xf - (i+1)*MOD_2FT, yf, MOD_2FT, PROF_FRIO, '#AED6F1', f"L1-{i+1}", font=5, name=f"CF L1 {i+1}")
-                    registrar_obj(xf - (i+1)*MOD_2FT, yf + PROF_FRIO - 0.15, MOD_2FT, 0.15, '#2874A6', name=f"Pta L1 {i+1}")
-                for i in range(p2):
-                    registrar_obj(xf, yf - (i+1)*MOD_2FT, PROF_FRIO, MOD_2FT, '#AED6F1', f"L2-{i+1}", font=5, name=f"CF L2 {i+1}")
-                    registrar_obj(xf, yf - (i+1)*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L2 {i+1}")
+                registrar_obj(xf, yf, wf, PROF_FRIO, '#AED6F1', "CUARTO FRÍO", weight='bold', name="Frio")
+                for i in range(ptas): registrar_obj(xf + i*MOD_2FT, yf + PROF_FRIO - 0.15, MOD_2FT, 0.15, '#2874A6', f"P{i+1}", font=4, txt_col='white', name=f"Pta {i+1}")
+                if conf['t_pasillos']: registrar_obj(xf, yf + PROF_FRIO, wf, PASILLO_STD, '#FCF3CF', "PASILLO FRÍO", alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
             elif rot_f == 270:
-                for i in range(p1): 
-                    registrar_obj(xf, yf - (i+1)*MOD_2FT, PROF_FRIO, MOD_2FT, '#AED6F1', f"L1-{i+1}", font=5, name=f"CF L1 {i+1}")
-                    registrar_obj(xf, yf - (i+1)*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L1 {i+1}")
-                for i in range(p2):
-                    registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf, MOD_2FT, PROF_FRIO, '#AED6F1', f"L2-{i+1}", font=5, name=f"CF L2 {i+1}")
-                    registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf + PROF_FRIO - 0.15, MOD_2FT, 0.15, '#2874A6', name=f"Pta L2 {i+1}")
+                registrar_obj(xf, yf, PROF_FRIO, wf, '#AED6F1', "CUARTO FRÍO", rot_text=90, weight='bold', name="Frio")
+                for i in range(ptas): registrar_obj(xf, yf + i*MOD_2FT, 0.15, MOD_2FT, '#2874A6', f"P{i+1}", rot_text=90, font=4, txt_col='white', name=f"Pta {i+1}")
+                if conf['t_pasillos']: registrar_obj(xf - PASILLO_STD, yf, PASILLO_STD, wf, '#FCF3CF', "PASILLO FRÍO", rot_text=90, alpha=0.6, tipo="Pasillo", name="Pasillo Frio", txt_col='#9A7D0A')
+            area_exh += (wf * PROF_FRIO)
+            
+        else: # Escuadra
+            p1, p2 = conf['ptas_frio_1'], conf['ptas_frio_2']
+            w1, w2 = p1 * MOD_2FT, p2 * MOD_2FT
+            registrar_obj(xf, yf, PROF_FRIO, PROF_FRIO, '#AED6F1', "PIVOTE", weight='bold', name="Frio Pivote")
+            
+            if rot_f == 0: # L1 Derecha, L2 Arriba
+                registrar_obj(xf + PROF_FRIO, yf, w1, PROF_FRIO, '#AED6F1', "FRIO L1", name="Frio 1")
+                for i in range(p1): registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf, MOD_2FT, 0.15, '#2874A6', name=f"Pta L1 {i+1}")
+                registrar_obj(xf, yf + PROF_FRIO, PROF_FRIO, w2, '#AED6F1', "FRIO L2", rot_text=90, name="Frio 2")
+                for i in range(p2): registrar_obj(xf + PROF_FRIO - 0.15, yf + PROF_FRIO + i*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L2 {i+1}")
+            elif rot_f == 90: # L1 Arriba, L2 Izquierda
+                registrar_obj(xf, yf + PROF_FRIO, PROF_FRIO, w1, '#AED6F1', "FRIO L1", rot_text=90, name="Frio 1")
+                for i in range(p1): registrar_obj(xf + PROF_FRIO - 0.15, yf + PROF_FRIO + i*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L1 {i+1}")
+                registrar_obj(xf - w2, yf, w2, PROF_FRIO, '#AED6F1', "FRIO L2", name="Frio 2")
+                for i in range(p2): registrar_obj(xf - (i+1)*MOD_2FT, yf + PROF_FRIO - 0.15, MOD_2FT, 0.15, '#2874A6', name=f"Pta L2 {i+1}")
+            elif rot_f == 180: # L1 Izquierda, L2 Abajo
+                registrar_obj(xf - w1, yf, w1, PROF_FRIO, '#AED6F1', "FRIO L1", name="Frio 1")
+                for i in range(p1): registrar_obj(xf - (i+1)*MOD_2FT, yf + PROF_FRIO - 0.15, MOD_2FT, 0.15, '#2874A6', name=f"Pta L1 {i+1}")
+                registrar_obj(xf, yf - w2, PROF_FRIO, w2, '#AED6F1', "FRIO L2", rot_text=90, name="Frio 2")
+                for i in range(p2): registrar_obj(xf, yf - (i+1)*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L2 {i+1}")
+            elif rot_f == 270: # L1 Abajo, L2 Derecha
+                registrar_obj(xf, yf - w1, PROF_FRIO, w1, '#AED6F1', "FRIO L1", rot_text=90, name="Frio 1")
+                for i in range(p1): registrar_obj(xf, yf - (i+1)*MOD_2FT, 0.15, MOD_2FT, '#2874A6', name=f"Pta L1 {i+1}")
+                registrar_obj(xf + PROF_FRIO, yf, w2, PROF_FRIO, '#AED6F1', "FRIO L2", name="Frio 2")
+                for i in range(p2): registrar_obj(xf + PROF_FRIO + i*MOD_2FT, yf, MOD_2FT, 0.15, '#2874A6', name=f"Pta L2 {i+1}")
             
             area_exh += (PROF_FRIO*PROF_FRIO) + ((p1+p2)*MOD_2FT*PROF_FRIO)
 
     # ==========================================
-    # 5. FOODVENIENCE (Modulado y Rotable)
+    # 5. FOODVENIENCE
     # ==========================================
     if conf['t_cafe']:
         xc, yc = conf['pos_cafe_x'], conf['pos_cafe_y']
@@ -250,15 +247,17 @@ def dibujar_layout_oxxo_v23(conf):
         
         if conf['forma_cafe'] == 'Lineal':
             mods = conf['cant_cafe']
-            for i in range(mods):
-                if rot_c == 0: registrar_obj(xc + i*MOD_2FT, yc, MOD_2FT, PROF_CAFE, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
-                elif rot_c == 90: registrar_obj(xc, yc + i*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
-                elif rot_c == 180: registrar_obj(xc - (i+1)*MOD_2FT, yc - PROF_CAFE, MOD_2FT, PROF_CAFE, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
-                elif rot_c == 270: registrar_obj(xc - PROF_CAFE, yc - (i+1)*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
+            if rot_c in [0, 180]:
+                for i in range(mods): registrar_obj(xc + i*MOD_2FT, yc, MOD_2FT, PROF_CAFE, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
+                if conf['t_pasillos']: registrar_obj(xc, yc + PROF_CAFE if rot_c==0 else yc - PASILLO_STD, mods*MOD_2FT, PASILLO_STD, '#FADBD8', "PASILLO CAFE", alpha=0.5, tipo="Pasillo", name="Pasillo Cafe", txt_col='#E74C3C')
+            else:
+                for i in range(mods): registrar_obj(xc, yc + i*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"C{i+1}", name=f"Cafe {i+1}")
+                if conf['t_pasillos']: registrar_obj(xc + PROF_CAFE if rot_c==90 else xc - PASILLO_STD, yc, PASILLO_STD, mods*MOD_2FT, '#FADBD8', "PASILLO CAFE", rot_text=90, alpha=0.5, tipo="Pasillo", name="Pasillo Cafe", txt_col='#E74C3C')
             area_exh += (mods * MOD_2FT * PROF_CAFE)
+            
         else: # Escuadra
-            registrar_obj(xc, yc, PROF_CAFE, PROF_CAFE, '#E59866', "C-Esq", name="Cafe Pivote") # Pivote
             p1, p2 = conf['mods_cafe_1'], conf['mods_cafe_2']
+            registrar_obj(xc, yc, PROF_CAFE, PROF_CAFE, '#E59866', "C-Piv", name="Cafe Pivote") 
             if rot_c == 0:
                 for i in range(p1): registrar_obj(xc + PROF_CAFE + i*MOD_2FT, yc, MOD_2FT, PROF_CAFE, '#FAD7A0', f"L1-{i+1}", font=5, name=f"C L1 {i+1}")
                 for i in range(p2): registrar_obj(xc, yc + PROF_CAFE + i*MOD_2FT, PROF_CAFE, MOD_2FT, '#FAD7A0', f"L2-{i+1}", font=5, name=f"C L2 {i+1}")
@@ -274,32 +273,7 @@ def dibujar_layout_oxxo_v23(conf):
             area_exh += (PROF_CAFE*PROF_CAFE) + ((p1+p2)*MOD_2FT*PROF_CAFE)
 
     # ==========================================
-    # 6. PERIMETRALES
-    # ==========================================
-    if conf['t_perimetral']:
-        w_peri = conf['pas_peri']
-        if conf['peri_izq']: 
-            for i in range(conf['tramos_izq']): registrar_obj(0, conf['pos_izq_y'] + (i*MOD_1FT), PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", rot=90, font=4, name=f"PIzq{i}")
-            if conf['t_pasillos']: registrar_obj(PROF_PERIMETRO, 0, w_peri, L, '#FCF3CF', "PASILLO PERIMETRAL", rot=90, alpha=0.3, tipo="Pasillo", name="Pas Peri Izq")
-            area_exh += (conf['tramos_izq'] * MOD_1FT * PROF_PERIMETRO)
-            
-        if conf['peri_der']: 
-            for i in range(conf['tramos_der']): registrar_obj(W - PROF_PERIMETRO, conf['pos_der_y'] + (i*MOD_1FT), PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", rot=90, font=4, name=f"PDer{i}")
-            if conf['t_pasillos']: registrar_obj(W - PROF_PERIMETRO - w_peri, 0, w_peri, L, '#FCF3CF', "PASILLO PERIMETRAL", rot=90, alpha=0.3, tipo="Pasillo", name="Pas Peri Der")
-            area_exh += (conf['tramos_der'] * MOD_1FT * PROF_PERIMETRO)
-            
-        if conf['peri_frente']: 
-            for i in range(conf['tramos_frente']): registrar_obj(conf['pos_fre_x'] + (i*MOD_1FT), 0, MOD_1FT, PROF_PERIMETRO, '#D5DBDB', "P", font=4, name=f"PFre{i}")
-            if conf['t_pasillos']: registrar_obj(0, PROF_PERIMETRO, W, w_peri, '#FCF3CF', "PASILLO PERIMETRAL", alpha=0.3, tipo="Pasillo", name="Pas Peri Fre")
-            area_exh += (conf['tramos_frente'] * MOD_1FT * PROF_PERIMETRO)
-            
-        if conf['peri_fondo']: 
-            for i in range(conf['tramos_fondo']): registrar_obj(conf['pos_fon_x'] + (i*MOD_1FT), L - PROF_PERIMETRO, MOD_1FT, PROF_PERIMETRO, '#D5DBDB', "P", font=4, name=f"PFon{i}")
-            if conf['t_pasillos']: registrar_obj(0, L - PROF_PERIMETRO - w_peri, W, w_peri, '#FCF3CF', "PASILLO PERIMETRAL", alpha=0.3, tipo="Pasillo", name="Pas Peri Fon")
-            area_exh += (conf['tramos_fondo'] * MOD_1FT * PROF_PERIMETRO)
-
-    # ==========================================
-    # 7. GÓNDOLAS CENTRALES
+    # 6. GÓNDOLAS CENTRALES (Rotables Bloque)
     # ==========================================
     if conf['t_gondolas']:
         xg, yg = conf['pos_gon_x'], conf['pos_gon_y']
@@ -314,18 +288,43 @@ def dibujar_layout_oxxo_v23(conf):
                     for t in range(tramos): registrar_obj(xg, yg + CABECERA_PROF + (t*MOD_3FT), GONDOLA_PROF, MOD_3FT, '#ABB2B9', f"Tr{t+1}", font=5, name=f"Tr{t+1} Tren{i+1}")
                 registrar_obj(xg, yg + CABECERA_PROF + largo_g, GONDOLA_PROF, CABECERA_PROF, '#E74C3C', "CAB", font=4, name=f"Cab Norte {i+1}")
                 
-                if conf['t_pasillos']: registrar_obj(xg + GONDOLA_PROF, yg, conf['pas_gon'], largo_g + CABECERA_PROF*2, '#EBEDEF', "P. GÓNDOLAS", rot=90, alpha=0.6, tipo="Pasillo", name=f"Pasillo Gon {i+1}")
+                if conf['t_pasillos']: registrar_obj(xg + GONDOLA_PROF, yg, conf['pas_gon'], largo_g + CABECERA_PROF*2, '#EBEDEF', "P. GÓNDOLAS", rot_text=90, alpha=0.6, tipo="Pasillo", name=f"Pasillo Gon {i+1}")
                 xg += GONDOLA_PROF + conf['pas_gon']
             else: 
-                registrar_obj(xg, yg, CABECERA_PROF, GONDOLA_PROF, '#E74C3C', "CAB", rot=90, font=4, name=f"Cab Oeste {i+1}")
-                if conf['sep_cab']: registrar_obj(xg + CABECERA_PROF + 0.6, yg, largo_g - 1.2, GONDOLA_PROF, '#ABB2B9', "TRAMOS", rot=90, name=f"Cuerpo {i+1}")
+                registrar_obj(xg, yg, CABECERA_PROF, GONDOLA_PROF, '#E74C3C', "CAB", rot_text=90, font=4, name=f"Cab Oeste {i+1}")
+                if conf['sep_cab']: registrar_obj(xg + CABECERA_PROF + 0.6, yg, largo_g - 1.2, GONDOLA_PROF, '#ABB2B9', "TRAMOS", rot_text=90, name=f"Cuerpo {i+1}")
                 else:
-                    for t in range(tramos): registrar_obj(xg + CABECERA_PROF + (t*MOD_3FT), yg, MOD_3FT, GONDOLA_PROF, '#ABB2B9', f"Tr{t+1}", rot=90, font=5, name=f"Tr{t+1} Tren{i+1}")
-                registrar_obj(xg + CABECERA_PROF + largo_g, yg, CABECERA_PROF, GONDOLA_PROF, '#E74C3C', "CAB", rot=90, font=4, name=f"Cab Este {i+1}")
+                    for t in range(tramos): registrar_obj(xg + CABECERA_PROF + (t*MOD_3FT), yg, MOD_3FT, GONDOLA_PROF, '#ABB2B9', f"Tr{t+1}", rot_text=90, font=5, name=f"Tr{t+1} Tren{i+1}")
+                registrar_obj(xg + CABECERA_PROF + largo_g, yg, CABECERA_PROF, GONDOLA_PROF, '#E74C3C', "CAB", rot_text=90, font=4, name=f"Cab Este {i+1}")
                 
                 if conf['t_pasillos']: registrar_obj(xg, yg + GONDOLA_PROF, largo_g + CABECERA_PROF*2, conf['pas_gon'], '#EBEDEF', "P. GÓNDOLAS", alpha=0.6, tipo="Pasillo", name=f"Pasillo Gon {i+1}")
                 yg += GONDOLA_PROF + conf['pas_gon']
             area_exh += GONDOLA_PROF * (largo_g + CABECERA_PROF*2)
+
+    # ==========================================
+    # 7. PERIMETRALES AUTO-AJUSTABLES
+    # ==========================================
+    if conf['t_perimetral']:
+        w_peri = conf['pas_peri']
+        if conf['peri_izq']: 
+            for i in range(conf['tramos_izq']): registrar_obj(0, conf['pos_izq_y'] + (i*MOD_1FT), PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", rot_text=90, font=4, name=f"PIzq{i}")
+            if conf['t_pasillos']: registrar_obj(PROF_PERIMETRO, 0, w_peri, L, '#FCF3CF', "PASILLO PERIMETRAL", rot_text=90, alpha=0.3, tipo="Pasillo", name="Pas Peri Izq")
+            area_exh += (conf['tramos_izq'] * MOD_1FT * PROF_PERIMETRO)
+            
+        if conf['peri_der']: 
+            for i in range(conf['tramos_der']): registrar_obj(W - PROF_PERIMETRO, conf['pos_der_y'] + (i*MOD_1FT), PROF_PERIMETRO, MOD_1FT, '#D5DBDB', "P", rot_text=90, font=4, name=f"PDer{i}")
+            if conf['t_pasillos']: registrar_obj(W - PROF_PERIMETRO - w_peri, 0, w_peri, L, '#FCF3CF', "PASILLO PERIMETRAL", rot_text=90, alpha=0.3, tipo="Pasillo", name="Pas Peri Der")
+            area_exh += (conf['tramos_der'] * MOD_1FT * PROF_PERIMETRO)
+            
+        if conf['peri_frente']: 
+            for i in range(conf['tramos_frente']): registrar_obj(conf['pos_fre_x'] + (i*MOD_1FT), 0, MOD_1FT, PROF_PERIMETRO, '#D5DBDB', "P", font=4, name=f"PFre{i}")
+            if conf['t_pasillos']: registrar_obj(0, PROF_PERIMETRO, W, w_peri, '#FCF3CF', "PASILLO PERIMETRAL", alpha=0.3, tipo="Pasillo", name="Pas Peri Fre")
+            area_exh += (conf['tramos_frente'] * MOD_1FT * PROF_PERIMETRO)
+            
+        if conf['peri_fondo']: 
+            for i in range(conf['tramos_fondo']): registrar_obj(conf['pos_fon_x'] + (i*MOD_1FT), L - PROF_PERIMETRO, MOD_1FT, PROF_PERIMETRO, '#D5DBDB', "P", font=4, name=f"PFon{i}")
+            if conf['t_pasillos']: registrar_obj(0, L - PROF_PERIMETRO - w_peri, W, w_peri, '#FCF3CF', "PASILLO PERIMETRAL", alpha=0.3, tipo="Pasillo", name="Pas Peri Fon")
+            area_exh += (conf['tramos_fondo'] * MOD_1FT * PROF_PERIMETRO)
 
     # ==========================================
     # 8. ISLAS INDIVIDUALES (JOYSTICK)
@@ -346,6 +345,7 @@ def dibujar_layout_oxxo_v23(conf):
 # --- INTERFAZ STREAMLIT ---
 st.set_page_config(layout="wide", page_title="Store Planning OXXO")
 
+# Inicialización de configuración
 conf = {}
 
 with st.sidebar:
@@ -355,6 +355,7 @@ with st.sidebar:
     
     st.markdown("### 📊 Auditoría Oficial M2")
     
+    # Para evitar que los muebles "salten", usamos valores iniciales estáticos o de session_state
     ancho = st.number_input("Ancho (m)", 5.0, 20.0, 12.0, 0.5)
     largo = st.number_input("Profundidad (m)", 5.0, 20.0, 15.0, 0.5)
     
@@ -383,18 +384,18 @@ with col_info:
         t_puerta = st.checkbox("Habilitar Acceso", value=False)
         tipo_puerta = st.selectbox("Tipo", ['1 Puerta (90cm)', '2 Puertas (180cm)'], index=1)
         muro_puerta = st.selectbox("Muro", ['Sur', 'Norte', 'Este', 'Oeste'])
-        pos_puerta_x = st.number_input("Posición X", 0.0, float(ancho), 5.0, 0.1)
-        pos_puerta_y = st.number_input("Posición Y (Si Este/Oeste)", 0.0, float(largo), 0.0, 0.1)
+        pos_puerta_x = st.number_input("Posición X", 0.0, 100.0, 5.0, 0.1)
+        pos_puerta_y = st.number_input("Posición Y (Si Este/Oeste)", 0.0, 100.0, 0.0, 0.1)
 
     with st.expander("2. Bodega Operativa", expanded=False):
         t_bodega = st.checkbox("Habilitar Bodega", value=False)
         loc_bodega = st.selectbox("Ubicación", ['Fondo (Norte)', 'Frente (Sur)', 'Lateral Izq (Oeste)', 'Lateral Der (Este)'])
         col_bx, col_by = st.columns(2)
-        x_bodega = col_bx.number_input("Posición Bodega X", 0.0, 20.0, 0.0, 0.1)
-        y_bodega = col_by.number_input("Posición Bodega Y", 0.0, 20.0, float(largo) - float((ancho*largo*0.2)/ancho), 0.1)
+        x_bodega = col_bx.number_input("Posición Bodega X", 0.0, 100.0, 0.0, 0.1)
+        y_bodega = col_by.number_input("Posición Bodega Y", 0.0, 100.0, 12.0, 0.1)
         col_w, col_h = st.columns(2)
-        w_bodega = col_w.number_input("Ancho Bodega", 1.0, 20.0, float(ancho), 0.1)
-        h_bodega = col_h.number_input("Largo Bodega", 1.0, 20.0, float((ancho*largo*0.2)/ancho), 0.1)
+        w_bodega = col_w.number_input("Ancho Bodega", 1.0, 100.0, 12.0, 0.1)
+        h_bodega = col_h.number_input("Largo Bodega", 1.0, 100.0, 3.0, 0.1)
         muro_puerta_bod = st.selectbox("Muro Puerta Bodega", ['Sur', 'Norte', 'Este', 'Oeste'])
         pos_puerta_bod = st.slider("Posición Puerta Bodega", 0.0, 10.0, 1.0)
 
@@ -408,15 +409,15 @@ with col_info:
         t_check = st.checkbox("Habilitar Checkout", value=False)
         cant_check = st.slider("Módulos", 2, 7, 3)
         rot_check = st.selectbox("Rotación Checkout (°)", [0, 90, 180, 270])
-        pos_chk_x = st.number_input("Check Pos X", 0.0, float(ancho), ancho - (cant_check*MOD_2FT), 0.1)
-        pos_chk_y = st.number_input("Check Pos Y", 0.0, float(largo), 0.0, 0.1)
+        pos_chk_x = st.number_input("Check Pos X", 0.0, 100.0, 8.0, 0.1)
+        pos_chk_y = st.number_input("Check Pos Y", 0.0, 100.0, 0.0, 0.1)
 
     with st.expander("5. Cuarto Frío", expanded=False):
         t_frio = st.checkbox("Habilitar Cuarto Frío", value=False)
         forma_frio = st.radio("Formato Frío", ['Lineal', 'Escuadra'])
         rot_frio = st.selectbox("Rotación Frío (°)", [0, 90, 180, 270])
-        pos_frio_x = st.number_input("Frío Pos X", 0.0, float(ancho), 0.0, 0.1)
-        pos_frio_y = st.number_input("Frío Pos Y", 0.0, float(largo), largo - PROF_FRIO, 0.1)
+        pos_frio_x = st.number_input("Frío Pos X", 0.0, 100.0, 0.0, 0.1)
+        pos_frio_y = st.number_input("Frío Pos Y", 0.0, 100.0, 10.0, 0.1)
         
         if forma_frio == 'Lineal': cant_frio = st.slider("Puertas", 2, 20, 8)
         else:
@@ -432,15 +433,16 @@ with col_info:
         cant_trenes = st.slider("Trenes", 1, 6, 2)
         cant_tramos = st.slider("Tramos por Tren", 1, 8, 3)
         pas_gon = st.slider("Pasillo entre góndolas", 0.9, 1.5, 1.2)
-        pos_gon_x = st.number_input("Góndola Pos X", 0.0, float(ancho), 4.0, 0.1)
-        pos_gon_y = st.number_input("Góndola Pos Y", 0.0, float(largo), 4.0, 0.1)
+        pos_gon_x = st.number_input("Góndola Pos X", 0.0, 100.0, 4.0, 0.1)
+        pos_gon_y = st.number_input("Góndola Pos Y", 0.0, 100.0, 4.0, 0.1)
 
     with st.expander("7. Foodvenience", expanded=False):
         t_cafe = st.checkbox("Habilitar Foodvenience", value=False)
         forma_cafe = st.radio("Formato Café", ['Lineal', 'Escuadra'])
         rot_cafe = st.selectbox("Rotación Café (°)", [0, 90, 180, 270])
-        pos_cafe_x = st.number_input("Café Pos X", 0.0, float(ancho), 0.0, 0.1)
-        pos_cafe_y = st.number_input("Café Pos Y", 0.0, float(largo), 0.0, 0.1)
+        pos_cafe_x = st.number_input("Café Pos X", 0.0, 100.0, 0.0, 0.1)
+        pos_cafe_y = st.number_input("Café Pos Y", 0.0, 100.0, 0.0, 0.1)
+        
         if forma_cafe == 'Lineal': cant_cafe = st.slider("Módulos Café", 2, 10, 4)
         else:
             col_c1, col_c2 = st.columns(2)
@@ -453,27 +455,27 @@ with col_info:
         col_m1, col_m2 = st.columns(2)
         peri_izq = col_m1.checkbox("Muro Izquierdo", value=False)
         tramos_izq = col_m1.number_input("Tramos Izq", 0, 30, 10)
-        pos_izq_y = col_m1.number_input("Inicio Y Izq", 0.0, 20.0, 0.0, 0.1)
+        pos_izq_y = col_m1.number_input("Inicio Y Izq", 0.0, 100.0, 0.0, 0.1)
         
         peri_der = col_m2.checkbox("Muro Derecho", value=False)
         tramos_der = col_m2.number_input("Tramos Der", 0, 30, 10)
-        pos_der_y = col_m2.number_input("Inicio Y Der", 0.0, 20.0, 0.0, 0.1)
+        pos_der_y = col_m2.number_input("Inicio Y Der", 0.0, 100.0, 0.0, 0.1)
         
         peri_frente = col_m1.checkbox("Muro Frente", value=False)
         tramos_frente = col_m1.number_input("Tramos Fre", 0, 30, 5)
-        pos_fre_x = col_m1.number_input("Inicio X Fre", 0.0, 20.0, 0.0, 0.1)
+        pos_fre_x = col_m1.number_input("Inicio X Fre", 0.0, 100.0, 0.0, 0.1)
         
         peri_fondo = col_m2.checkbox("Muro Fondo", value=False)
         tramos_fondo = col_m2.number_input("Tramos Fon", 0, 30, 5)
-        pos_fon_x = col_m2.number_input("Inicio X Fon", 0.0, 20.0, 0.0, 0.1)
+        pos_fon_x = col_m2.number_input("Inicio X Fon", 0.0, 100.0, 0.0, 0.1)
 
     with st.expander("9. Islas Individuales", expanded=False):
         t_islas = st.checkbox("Habilitar Islas Libres", value=False)
         cant_islas = st.slider("Cantidad de Islas", 1, 10, 3)
         for i in range(cant_islas):
             c1, c2 = st.columns(2)
-            conf[f'isla_x_{i}'] = c1.number_input(f"Isla {i+1} X", 0.0, 20.0, 2.0 + (i*1.0), 0.1)
-            conf[f'isla_y_{i}'] = c2.number_input(f"Isla {i+1} Y", 0.0, 20.0, 2.0, 0.1)
+            conf[f'isla_x_{i}'] = c1.number_input(f"Isla {i+1} X", 0.0, 100.0, 2.0 + (i*1.0), 0.1)
+            conf[f'isla_y_{i}'] = c2.number_input(f"Isla {i+1} Y", 0.0, 100.0, 2.0, 0.1)
 
 # Compilación Final del Diccionario
 conf.update({
@@ -491,7 +493,7 @@ conf.update({
 })
 
 with col_plot:
-    fig, errores, pct_exh, pct_nav, a_tot, a_com, a_op_real = dibujar_layout_oxxo_v23(conf)
+    fig, errores, pct_exh, pct_nav, a_tot, a_com, a_op_real = dibujar_layout_oxxo_v24(conf)
     st.pyplot(fig)
     
     col_pdf, col_svg = st.columns(2)
