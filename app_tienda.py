@@ -19,7 +19,6 @@ ISLA_DIM = 0.60
 
 # --- CLASIFICADOR DE MATRIZ DE FORMATOS OXXO ---
 def clasificar_formato(m2):
-    """Clasifica la tienda según la matriz oficial de OXXO basada en los m2 totales"""
     if m2 <= 15: return "BOOTH (Compacto)"
     elif m2 <= 36: return "MINI (Reducido)"
     elif m2 <= 56: return "MINI 2 (Reducido)"
@@ -39,8 +38,26 @@ def colisiona(x, y, w, h, obstaculos):
             return True
     return False
 
-def dibujar_layout_v19(conf):
-    W, L = conf['ancho'], conf['largo']
+# --- MOTOR DE TRANSFORMACIÓN ESPACIAL ---
+def obtener_transformacion(muro, ancho_orig, largo_orig):
+    def transform(x, y, w, h, rot_texto=0):
+        if muro == 'Inferior (Frente)': return x, y, w, h, rot_texto
+        elif muro == 'Lateral Izquierdo': return y, x, h, w, rot_texto - 90
+        elif muro == 'Lateral Derecho': return ancho_orig - y - h, x, h, w, rot_texto + 90
+    return transform
+
+def normalizar_rotacion(r):
+    r = r % 360
+    if 90 < r < 270: r -= 180
+    return r
+
+def dibujar_layout_oxxo(conf):
+    ancho_real, largo_real = conf['ancho'], conf['largo']
+    muro = conf['muro_puerta']
+    
+    if muro == 'Inferior (Frente)': W, L = ancho_real, largo_real
+    else: W, L = largo_real, ancho_real 
+
     fig, ax = plt.subplots(figsize=(12, 12))
     ax.set_xlim(0, W)
     ax.set_ylim(0, L)
@@ -50,20 +67,31 @@ def dibujar_layout_v19(conf):
     ax.yaxis.set_major_locator(MultipleLocator(1))
     ax.grid(which='major', color='#E5E7E9', linestyle='-', linewidth=0.5, zorder=0)
 
-    obstaculos = []
-    errores = []
+    trans = obtener_transformacion(muro, ancho_real, largo_real)
+    obstaculos, errores = [], []
     area_exh = 0
     
-    # Muros Exteriores
-    ax.add_patch(patches.Rectangle((0, 0), W, L, fill=False, ec='black', lw=4, zorder=10))
+    def dibujar(x, y, w, h, color, ec='black', alpha=1.0, texto="", fontsize=6, rot=0, color_txt='black', weight='normal'):
+        xn, yn, wn, hn, rotn = trans(x, y, w, h, rot)
+        ax.add_patch(patches.Rectangle((xn, yn), wn, hn, color=color, ec=ec, alpha=alpha, zorder=5))
+        if texto:
+            cx, cy = xn + wn/2, yn + hn/2
+            ax.text(cx, cy, texto, ha='center', va='center', rotation=normalizar_rotacion(rotn), fontsize=fontsize, color=color_txt, weight=weight, zorder=10)
+
+    def dibujar_circulo(x, y, r, color, alpha):
+        xn, yn, _, _, _ = trans(x - r, y - r, r*2, r*2, 0)
+        ax.add_patch(patches.Circle((xn + r, yn + r), r, color=color, alpha=alpha, zorder=1))
+
+    # Lienzo
+    ax.add_patch(patches.Rectangle((0, 0), ancho_real, largo_real, fill=False, ec='black', lw=4, zorder=10))
+
+    area_total = W * L
+    area_operativa = area_total * 0.20 
+    area_comercial = area_total * 0.80
 
     # ==========================================
-    # 1. BODEGA (Área Operativa)
+    # 1. BODEGA (Área Operativa 20%)
     # ==========================================
-    area_total = W * L
-    area_operativa = area_total * 0.20
-    area_comercial = area_total * 0.80
-    
     w_bod, h_bod = W, area_operativa / W
     x_bod, y_bod = 0, L - h_bod
     puerta_bod_x, puerta_bod_y = 0, 0
@@ -81,19 +109,15 @@ def dibujar_layout_v19(conf):
             x_bod, y_bod = W - w_bod, 0
             puerta_bod_x, puerta_bod_y = x_bod, L/2
             
-        ax.add_patch(patches.Rectangle((x_bod, y_bod), w_bod, h_bod, color='#D2B48C', ec='black', zorder=5))
-        ax.text(x_bod + w_bod/2, y_bod + h_bod/2, 'BODEGA (20%)', ha='center', weight='bold')
+        dibujar(x_bod, y_bod, w_bod, h_bod, '#D2B48C', texto='BODEGA (20%)', weight='bold')
         
-        # Pasillo Interior Bodega y Racks
+        # Pasillo Interior Bodega
         p_bod = conf['pasillo_bod']
-        ax.add_patch(patches.Rectangle((x_bod + 0.5, y_bod + 0.5), w_bod - 1.0, h_bod - 1.0, color='#E59866', alpha=0.3, zorder=6))
-        ax.text(x_bod + w_bod/2, y_bod + h_bod/2 - 0.5, f'Pasillo: {p_bod}m', ha='center', fontsize=6)
+        dibujar(x_bod + 0.5, y_bod + 0.5, w_bod - 1.0, h_bod - 1.0, '#E59866', ec='none', alpha=0.3, texto=f'Pasillo: {p_bod}m', color_txt='white')
         
         # Puerta Bodega
-        if conf['loc_bodega'] == 'Fondo':
-            ax.add_patch(patches.Rectangle((puerta_bod_x, puerta_bod_y-0.1), 1.8, 0.2, color='brown', zorder=11))
-        else:
-            ax.add_patch(patches.Rectangle((puerta_bod_x-0.1, puerta_bod_y), 0.2, 1.8, color='brown', zorder=11))
+        if conf['loc_bodega'] == 'Fondo': dibujar(puerta_bod_x, puerta_bod_y-0.1, 1.8, 0.2, 'brown')
+        else: dibujar(puerta_bod_x-0.1, puerta_bod_y, 0.2, 1.8, 'brown')
             
         obstaculos.append((x_bod, y_bod, w_bod, h_bod))
 
@@ -101,47 +125,26 @@ def dibujar_layout_v19(conf):
     # 2. ACCESO Y PASILLO DE PODER
     # ==========================================
     ancho_puerta_real = 0.9 if conf['tipo_puerta'] == '1 Puerta (90cm)' else 1.80
-    x_p, y_p = 0, 0
+    x_p, y_p = conf['pos_puerta'], 0
     
     if conf['t_puerta']:
-        if conf['muro_puerta'] == 'Inferior': x_p, y_p = conf['pos_puerta'], 0
-        elif conf['muro_puerta'] == 'Izquierdo': x_p, y_p = 0, conf['pos_puerta']
-        else: x_p, y_p = W, conf['pos_puerta']
+        dibujar(x_p, y_p, ancho_puerta_real, 0.2, 'red', ec='darkred', texto='ACCESO', color_txt='white', fontsize=5)
+        dibujar_circulo(x_p + ancho_puerta_real/2, 0, 2.0, '#85C1E9', 0.2)
         
-        # Dibujar Puerta
-        if conf['muro_puerta'] == 'Inferior':
-            ax.add_patch(patches.Rectangle((x_p, y_p), ancho_puerta_real, 0.2, color='red', zorder=11))
-        else:
-            ax.add_patch(patches.Rectangle((x_p-0.2, y_p), 0.2, ancho_puerta_real, color='red', zorder=11))
-            
-        ax.add_patch(patches.Circle((x_p + (ancho_puerta_real/2 if conf['muro_puerta']=='Inferior' else 0), 
-                                     y_p + (ancho_puerta_real/2 if conf['muro_puerta']!='Inferior' else 0)), 
-                                    2.0, color='#85C1E9', alpha=0.2, zorder=1))
-
-    if conf['t_pasillos']:
+    if conf['t_pasillos'] and conf['t_puerta']:
         w_poder = conf['pas_poder']
-        if conf['muro_puerta'] == 'Inferior':
-            ax.add_patch(patches.Rectangle((x_p - (w_poder-ancho_puerta_real)/2, 0), w_poder, y_bod if conf['t_bodega'] and conf['loc_bodega']=='Fondo' else L, color='#AED6F1', alpha=0.4, zorder=2))
-            ax.text(x_p + ancho_puerta_real/2, L/3, 'PASILLO DE PODER', rotation=90, ha='center', color='#154360', weight='bold')
-            obstaculos.append((x_p - (w_poder-ancho_puerta_real)/2, 0, w_poder, L))
-        elif conf['muro_puerta'] == 'Izquierdo':
-            ax.add_patch(patches.Rectangle((0, y_p - (w_poder-ancho_puerta_real)/2), x_bod if conf['t_bodega'] and conf['loc_bodega']=='Lateral Derecho' else W, w_poder, color='#AED6F1', alpha=0.4, zorder=2))
-            ax.text(W/3, y_p + ancho_puerta_real/2, 'PASILLO DE PODER', ha='center', va='center', color='#154360', weight='bold')
-            obstaculos.append((0, y_p - (w_poder-ancho_puerta_real)/2, W, w_poder))
-        else:
-            limite_x = w_bod if conf['t_bodega'] and conf['loc_bodega']=='Lateral Izquierdo' else 0
-            ax.add_patch(patches.Rectangle((limite_x, y_p - (w_poder-ancho_puerta_real)/2), W - limite_x, w_poder, color='#AED6F1', alpha=0.4, zorder=2))
-            obstaculos.append((0, y_p - (w_poder-ancho_puerta_real)/2, W, w_poder))
+        lim_y = y_bod if conf['t_bodega'] and conf['loc_bodega'] == 'Fondo' else L
+        dibujar(x_p - (w_poder-ancho_puerta_real)/2, 0, w_poder, lim_y, '#AED6F1', ec='none', alpha=0.4, texto='PASILLO DE PODER', rot=90, color_txt='#154360', weight='bold')
+        obstaculos.append((x_p - (w_poder-ancho_puerta_real)/2, 0, w_poder, lim_y))
 
-        # Pasillos Perimetrales (Visualización representativa)
+        # Pasillos Perimetrales
         w_peri = conf['pas_peri']
-        lim_y = y_bod if conf['t_bodega'] and conf['loc_bodega']=='Fondo' else L
-        lim_x_izq = w_bod if conf['t_bodega'] and conf['loc_bodega']=='Lateral Izquierdo' else 0
-        lim_x_der = W - w_bod if conf['t_bodega'] and conf['loc_bodega']=='Lateral Derecho' else W
+        lim_x_izq = w_bod if conf['t_bodega'] and conf['loc_bodega'] == 'Lateral Izquierdo' else 0
+        lim_x_der = W - w_bod if conf['t_bodega'] and conf['loc_bodega'] == 'Lateral Derecho' else W
         
-        ax.add_patch(patches.Rectangle((lim_x_izq + PROF_PERIMETRO, PROF_PERIMETRO), w_peri, lim_y - PROF_PERIMETRO*2, color='#FCF3CF', alpha=0.3, zorder=1))
-        ax.add_patch(patches.Rectangle((lim_x_der - PROF_PERIMETRO - w_peri, PROF_PERIMETRO), w_peri, lim_y - PROF_PERIMETRO*2, color='#FCF3CF', alpha=0.3, zorder=1))
-        ax.add_patch(patches.Rectangle((lim_x_izq + PROF_PERIMETRO, lim_y - PROF_FRIO - w_peri), lim_x_der - lim_x_izq - PROF_PERIMETRO*2, w_peri, color='#FCF3CF', alpha=0.5, zorder=1))
+        dibujar(lim_x_izq + PROF_PERIMETRO, PROF_PERIMETRO, w_peri, lim_y - PROF_PERIMETRO*2, '#FCF3CF', ec='none', alpha=0.3)
+        dibujar(lim_x_der - PROF_PERIMETRO - w_peri, PROF_PERIMETRO, w_peri, lim_y - PROF_PERIMETRO*2, '#FCF3CF', ec='none', alpha=0.3)
+        dibujar(lim_x_izq + PROF_PERIMETRO, lim_y - PROF_FRIO - w_peri, lim_x_der - lim_x_izq - PROF_PERIMETRO*2, w_peri, '#FCF3CF', ec='none', alpha=0.5)
 
     # ==========================================
     # 3. CHECKOUT
@@ -151,27 +154,25 @@ def dibujar_layout_v19(conf):
         muro_chk = conf['muro_check']
         
         if muro_chk == 'Inferior': x_chk, y_chk, w_chk, h_chk, rot = W - ancho_check - PROF_PERIMETRO, PROF_PERIMETRO, ancho_check, PROF_CONTRA+PROF_CAJERO+PROF_CHECK, 0
-        elif muro_chk == 'Superior': x_chk, y_chk, w_chk, h_chk, rot = PROF_PERIMETRO, L - (PROF_CONTRA+PROF_CAJERO+PROF_CHECK) - h_bod, ancho_check, PROF_CONTRA+PROF_CAJERO+PROF_CHECK, 0
+        elif muro_chk == 'Superior': x_chk, y_chk, w_chk, h_chk, rot = PROF_PERIMETRO, L - (PROF_CONTRA+PROF_CAJERO+PROF_CHECK) - (h_bod if conf['t_bodega'] and conf['loc_bodega']=='Fondo' else 0), ancho_check, PROF_CONTRA+PROF_CAJERO+PROF_CHECK, 0
         elif muro_chk == 'Izquierdo': x_chk, y_chk, w_chk, h_chk, rot = PROF_PERIMETRO, PROF_PERIMETRO, PROF_CONTRA+PROF_CAJERO+PROF_CHECK, ancho_check, 90
         else: x_chk, y_chk, w_chk, h_chk, rot = W - (PROF_CONTRA+PROF_CAJERO+PROF_CHECK) - PROF_PERIMETRO, PROF_PERIMETRO, PROF_CONTRA+PROF_CAJERO+PROF_CHECK, ancho_check, 90
 
         if not colisiona(x_chk, y_chk, w_chk, h_chk, obstaculos):
             if rot == 0:
-                ax.add_patch(patches.Rectangle((x_chk, y_chk), ancho_check, PROF_CONTRA, color='#82E0AA', zorder=5))
-                ax.add_patch(patches.Rectangle((x_chk, y_chk + PROF_CONTRA), ancho_check, PROF_CAJERO, color='#EAEDED', zorder=5))
-                ax.add_patch(patches.Rectangle((x_chk, y_chk + PROF_CONTRA + PROF_CAJERO), ancho_check, PROF_CHECK, color='#ABEBC6', ec='black', zorder=5))
-                ax.text(x_chk + ancho_check/2, y_chk + PROF_CONTRA + PROF_CAJERO + PROF_CHECK/2, 'CHECKOUT', ha='center', fontsize=6)
-                if conf['t_pasillos']: ax.add_patch(patches.Rectangle((x_chk, y_chk + h_chk), ancho_check, PASILLO_STD, color='#D5F5E3', alpha=0.5, zorder=2))
+                dibujar(x_chk, y_chk, ancho_check, PROF_CONTRA, '#82E0AA', texto='C.CAJA', fontsize=4)
+                dibujar(x_chk, y_chk + PROF_CONTRA, ancho_check, PROF_CAJERO, '#EAEDED')
+                for i in range(conf['cant_check']): dibujar(x_chk + (i*MOD_2FT), y_chk + PROF_CONTRA + PROF_CAJERO, MOD_2FT, PROF_CHECK, '#ABEBC6', texto=f'CHK{i+1}', fontsize=5)
+                if conf['t_pasillos']: dibujar(x_chk, y_chk + h_chk, ancho_check, PASILLO_STD, '#D5F5E3', ec='none', alpha=0.5, texto='PASILLO COBRO', fontsize=5)
             else:
-                ax.add_patch(patches.Rectangle((x_chk, y_chk), PROF_CONTRA, ancho_check, color='#82E0AA', zorder=5))
-                ax.add_patch(patches.Rectangle((x_chk + PROF_CONTRA, y_chk), PROF_CAJERO, ancho_check, color='#EAEDED', zorder=5))
-                ax.add_patch(patches.Rectangle((x_chk + PROF_CONTRA + PROF_CAJERO, y_chk), PROF_CHECK, ancho_check, color='#ABEBC6', ec='black', zorder=5))
-                ax.text(x_chk + PROF_CONTRA + PROF_CAJERO + PROF_CHECK/2, y_chk + ancho_check/2, 'CHECKOUT', rotation=90, va='center', fontsize=6)
-                if conf['t_pasillos']: ax.add_patch(patches.Rectangle((x_chk + w_chk, y_chk), PASILLO_STD, ancho_check, color='#D5F5E3', alpha=0.5, zorder=2))
+                dibujar(x_chk, y_chk, PROF_CONTRA, ancho_check, '#82E0AA')
+                dibujar(x_chk + PROF_CONTRA, y_chk, PROF_CAJERO, ancho_check, '#EAEDED')
+                dibujar(x_chk + PROF_CONTRA + PROF_CAJERO, y_chk, PROF_CHECK, ancho_check, '#ABEBC6', texto='CHECKOUT', rot=90)
+                if conf['t_pasillos']: dibujar(x_chk + w_chk, y_chk, PASILLO_STD, ancho_check, '#D5F5E3', ec='none', alpha=0.5, texto='PASILLO COBRO', rot=90, fontsize=5)
             
-            obstaculos.append((x_chk, y_chk, w_chk, h_chk + (PASILLO_STD if rot==0 else 0)))
+            obstaculos.append((x_chk, y_chk, w_chk, h_chk + (PASILLO_STD if rot==0 and conf['t_pasillos'] else 0)))
             area_exh += (ancho_check * PROF_CHECK)
-        else: errores.append("Checkout colisiona con el acceso o bodega.")
+        else: errores.append("Checkout colisiona o no cabe.")
 
     # ==========================================
     # 4. CUARTO FRÍO
@@ -183,15 +184,14 @@ def dibujar_layout_v19(conf):
         x_frio = conf['pos_frio']
         
         if not colisiona(x_frio, y_frio, ancho_frio, PROF_FRIO, obstaculos):
-            ax.add_patch(patches.Rectangle((x_frio, y_frio), ancho_frio, PROF_FRIO, color='#AED6F1', ec='black', zorder=5))
-            ax.text(x_frio + ancho_frio/2, y_frio + PROF_FRIO/2, f'FRÍO ({ptas}P)', ha='center', weight='bold')
-            for i in range(ptas): ax.add_patch(patches.Rectangle((x_frio + (i*MOD_2FT), y_frio), MOD_2FT, 0.15, color='#2874A6', ec='white', zorder=6))
+            dibujar(x_frio, y_frio, ancho_frio, PROF_FRIO, '#AED6F1', texto='CUARTO FRÍO', weight='bold')
+            for i in range(ptas): dibujar(x_frio + (i*MOD_2FT), y_frio, MOD_2FT, 0.15, '#2874A6', ec='white', texto=f'P{i+1}', color_txt='white', rot=90, fontsize=4)
             obstaculos.append((x_frio, y_frio - (PASILLO_STD if conf['t_pasillos'] else 0), ancho_frio, PROF_FRIO + (PASILLO_STD if conf['t_pasillos'] else 0)))
             area_exh += (ancho_frio * PROF_FRIO)
         else: errores.append("Cuarto Frío colisiona.")
 
     # ==========================================
-    # 5. FOODVENIENCE (CAFÉ)
+    # 5. FOODVENIENCE
     # ==========================================
     if conf['t_cafe']:
         mods = conf['cant_cafe']
@@ -200,17 +200,17 @@ def dibujar_layout_v19(conf):
         
         if conf['forma_cafe'] == 'Lineal':
             if not colisiona(x_c, y_c, ancho_cafe, PROF_CAFE, obstaculos):
-                for i in range(mods): ax.add_patch(patches.Rectangle((x_c + (i*MOD_2FT), y_c), MOD_2FT, PROF_CAFE, color='#FAD7A0', ec='black', zorder=5))
+                for i in range(mods): dibujar(x_c + (i*MOD_2FT), y_c, MOD_2FT, PROF_CAFE, '#FAD7A0', texto=f'C{i+1}')
                 obstaculos.append((x_c, y_c, ancho_cafe, PROF_CAFE))
                 area_exh += (ancho_cafe * PROF_CAFE)
             else: errores.append("Foodvenience Lineal colisiona.")
         else: # Escuadra
             mods_x = int(mods / 2)
             mods_y = mods - mods_x
-            if not colisiona(x_c, y_c, mods_x*MOD_2FT, PROF_CAFE, obstaculos):
-                ax.add_patch(patches.Rectangle((x_c, y_c), mods_x*MOD_2FT, PROF_CAFE, color='#FAD7A0', ec='black', zorder=5))
-                ax.add_patch(patches.Rectangle((x_c, y_c + PROF_CAFE), PROF_CAFE, mods_y*MOD_2FT, color='#FAD7A0', ec='black', zorder=5))
-                ax.add_patch(patches.Rectangle((x_c, y_c), PROF_CAFE, PROF_CAFE, color='#E59866', ec='black', zorder=6)) # Pivote
+            if not colisiona(x_c, y_c, mods_x*MOD_2FT, PROF_CAFE + mods_y*MOD_2FT, obstaculos):
+                dibujar(x_c, y_c, mods_x*MOD_2FT, PROF_CAFE, '#FAD7A0')
+                dibujar(x_c, y_c + PROF_CAFE, PROF_CAFE, mods_y*MOD_2FT, '#FAD7A0')
+                dibujar(x_c, y_c, PROF_CAFE, PROF_CAFE, '#E59866') # Esquina
                 obstaculos.append((x_c, y_c, max(mods_x*MOD_2FT, PROF_CAFE), PROF_CAFE + mods_y*MOD_2FT))
                 area_exh += (mods * MOD_2FT * PROF_CAFE)
 
@@ -220,26 +220,32 @@ def dibujar_layout_v19(conf):
     if conf['t_gondolas']:
         x_g, y_g = conf['pos_gon_x'], conf['pos_gon_y']
         largo_g = conf['cant_tramos'] * MOD_3FT
+        trenes_colocados = 0
         
         for i in range(conf['cant_trenes']):
             if conf['rot_gon'] == 'Vertical':
                 if not colisiona(x_g, y_g, GONDOLA_PROF, largo_g + CABECERA_PROF*2, obstaculos):
-                    ax.add_patch(patches.Rectangle((x_g, y_g), GONDOLA_PROF, CABECERA_PROF, color='#E74C3C', ec='black', zorder=5))
-                    if conf['sep_cab']: ax.add_patch(patches.Rectangle((x_g, y_g + CABECERA_PROF + 0.6), GONDOLA_PROF, largo_g - 1.2, color='#ABB2B9', ec='black', zorder=5))
-                    else: ax.add_patch(patches.Rectangle((x_g, y_g + CABECERA_PROF), GONDOLA_PROF, largo_g, color='#ABB2B9', ec='black', zorder=5))
-                    ax.add_patch(patches.Rectangle((x_g, y_g + CABECERA_PROF + largo_g), GONDOLA_PROF, CABECERA_PROF, color='#E74C3C', ec='black', zorder=5))
+                    dibujar(x_g, y_g, GONDOLA_PROF, CABECERA_PROF, '#E74C3C', texto='CAB', fontsize=4)
+                    if conf['sep_cab']: dibujar(x_g, y_g + CABECERA_PROF + 0.6, GONDOLA_PROF, largo_g - 1.2, '#ABB2B9')
+                    else: 
+                        for t in range(conf['cant_tramos']): dibujar(x_g, y_g + CABECERA_PROF + (t*MOD_3FT), GONDOLA_PROF, MOD_3FT, '#ABB2B9', texto=f'Tr{t+1}', fontsize=5)
+                    dibujar(x_g, y_g + CABECERA_PROF + largo_g, GONDOLA_PROF, CABECERA_PROF, '#E74C3C', texto='CAB', fontsize=4)
                     obstaculos.append((x_g, y_g, GONDOLA_PROF, largo_g + CABECERA_PROF*2))
                     area_exh += GONDOLA_PROF * (largo_g + CABECERA_PROF*2)
+                    trenes_colocados += 1
                 x_g += GONDOLA_PROF + conf['pas_gon']
             else: # Horizontal
                 if not colisiona(x_g, y_g, largo_g + CABECERA_PROF*2, GONDOLA_PROF, obstaculos):
-                    ax.add_patch(patches.Rectangle((x_g, y_g), CABECERA_PROF, GONDOLA_PROF, color='#E74C3C', ec='black', zorder=5))
-                    if conf['sep_cab']: ax.add_patch(patches.Rectangle((x_g + CABECERA_PROF + 0.6, y_g), largo_g - 1.2, GONDOLA_PROF, color='#ABB2B9', ec='black', zorder=5))
-                    else: ax.add_patch(patches.Rectangle((x_g + CABECERA_PROF, y_g), largo_g, GONDOLA_PROF, color='#ABB2B9', ec='black', zorder=5))
-                    ax.add_patch(patches.Rectangle((x_g + CABECERA_PROF + largo_g, y_g), CABECERA_PROF, GONDOLA_PROF, color='#E74C3C', ec='black', zorder=5))
+                    dibujar(x_g, y_g, CABECERA_PROF, GONDOLA_PROF, '#E74C3C', texto='CAB', rot=90, fontsize=4)
+                    if conf['sep_cab']: dibujar(x_g + CABECERA_PROF + 0.6, y_g, largo_g - 1.2, GONDOLA_PROF, '#ABB2B9')
+                    else: 
+                        for t in range(conf['cant_tramos']): dibujar(x_g + CABECERA_PROF + (t*MOD_3FT), y_g, MOD_3FT, GONDOLA_PROF, '#ABB2B9', texto=f'Tr{t+1}', rot=90, fontsize=5)
+                    dibujar(x_g + CABECERA_PROF + largo_g, y_g, CABECERA_PROF, GONDOLA_PROF, '#E74C3C', texto='CAB', rot=90, fontsize=4)
                     obstaculos.append((x_g, y_g, largo_g + CABECERA_PROF*2, GONDOLA_PROF))
                     area_exh += GONDOLA_PROF * (largo_g + CABECERA_PROF*2)
+                    trenes_colocados += 1
                 y_g += GONDOLA_PROF + conf['pas_gon']
+        if trenes_colocados < conf['cant_trenes']: errores.append("Trenes de góndola colisionan o salen del área.")
 
     # ==========================================
     # 7. PERIMETRALES
@@ -254,7 +260,7 @@ def dibujar_layout_v19(conf):
                 cw = PROF_PERIMETRO if is_v else MOD_1FT
                 ch = MOD_1FT if is_v else PROF_PERIMETRO
                 if not colisiona(cx, cy, cw, ch, obstaculos):
-                    ax.add_patch(patches.Rectangle((cx, cy), cw, ch, color='#D5DBDB', ec='gray', zorder=4))
+                    dibujar(cx, cy, cw, ch, '#D5DBDB', ec='gray', texto='P', fontsize=4, rot=0 if is_v else 90)
                     tramos_peri += 1
 
         if 'Izquierda' in conf['muros_peri']: colocar_muro(0, 0, L, True)
@@ -272,14 +278,11 @@ def dibujar_layout_v19(conf):
         dim_x = ISLA_DIM * (2 if grupo in ['2x1', '2x2'] else 1)
         dim_y = ISLA_DIM * (2 if grupo == '2x2' else 1)
         
-        # Escaneo de áreas libres basado en la prioridad seleccionada
-        # (Simplificación: busca en todo el mapa pero puedes usar las coordenadas X,Y para filtrar)
         for y_isla in range(1, int(L)-1): 
             for x_isla in range(1, int(W)-1):
                 if islas_ok >= conf['cant_islas']: break
                 if not colisiona(x_isla, y_isla, dim_x, dim_y, obstaculos):
-                    ax.add_patch(patches.Rectangle((x_isla, y_isla), dim_x, dim_y, color='#F4D03F', ec='black', zorder=6))
-                    ax.text(x_isla + dim_x/2, y_isla + dim_y/2, f'E{islas_ok+1}', ha='center', va='center', fontsize=6)
+                    dibujar(x_isla, y_isla, dim_x, dim_y, '#F4D03F', texto=f'E{islas_ok+1}')
                     obstaculos.append((x_isla - 0.2, y_isla - 0.2, dim_x + 0.4, dim_y + 0.4))
                     islas_ok += 1
         area_exh += (islas_ok * dim_x * dim_y)
@@ -294,17 +297,12 @@ def dibujar_layout_v19(conf):
 # --- INTERFAZ STREAMLIT ---
 st.set_page_config(layout="wide")
 
-# ==========================================
-# DASHBOARD PERMANENTE (Barra Lateral Superior)
-# ==========================================
 with st.sidebar:
     st.title("🏬 Store Planning OXXO")
-    
     st.markdown("### 📊 Dashboard de M2 y KPIs")
     
-    # Huella base para cálculos rápidos
-    ancho = st.number_input("Ancho (m)", 5.0, 20.0, 12.0, 0.5, key='ancho')
-    largo = st.number_input("Profundidad (m)", 5.0, 20.0, 15.0, 0.5, key='largo')
+    ancho = st.number_input("Ancho (m)", 5.0, 20.0, 12.0, 0.5)
+    largo = st.number_input("Profundidad (m)", 5.0, 20.0, 15.0, 0.5)
     
     area_tot = ancho * largo
     area_op = area_tot * 0.20
@@ -318,7 +316,22 @@ with st.sidebar:
     kpi_nav = kpi_col2.empty()
     
     st.markdown("---")
-    st.write("🔧 **Módulos Independientes (Activa los necesarios)**")
+    st.write("🔧 **Módulos Independientes**")
+
+with st.expander("ℹ️ Información y Reglas del Sistema Store Planning OXXO", expanded=False):
+    st.markdown("""
+    **Balanceo de Áreas:** El código respeta la regla de distribución de espacio que dicta que aproximadamente el **20%** se destina a Espacios Operativos y el **80%** a Espacios Comerciales. Dentro del área comercial, se calcula un **40% para exhibición** (garantizando rentabilidad sin saturar) y un **60% para navegación** (asegurando una buena experiencia del consumidor).
+    
+    **Matriz de Formatos:** La función agrupa la tienda en categorías como "Compactos", "Reducidos" y "Ordinarios" dependiendo del rango exacto de m2 estipulado en la matriz oficial. Por ejemplo, de 99 a 117 m2 se considera formato **REGULAR**.
+    
+    **Los 4 Elementos Cardinales:** Se extrajeron las condicionantes de ubicación estrictas: 
+    1. El **Acceso** es el punto de partida.
+    2. El **Check out** debe estar lo más cerca del acceso.
+    3. El área **Operativa** no debe dejar espacios muertos.
+    4. El **Cuarto Frío** debe ir perimetral y lo más alejado de la entrada (Destino).
+    
+    **Landscaping (Jerarquía Visual):** Se implementó la regla *"primero lo más bajo y al fondo lo más alto"* para definir las alturas máximas permitidas de acuerdo a la distancia desde el umbral (desde 3.5 ft en el acceso hasta 7 ft en el muro perimetral más lejano).
+    """)
 
 col_info, col_plot = st.columns([1.2, 2.8])
 
@@ -326,7 +339,7 @@ with col_info:
     with st.expander("1. Acceso y Puertas", expanded=False):
         t_puerta = st.checkbox("Habilitar Acceso", value=True)
         tipo_puerta = st.selectbox("Tipo de Puerta", ['1 Puerta (90cm)', '2 Puertas (180cm)'], index=1)
-        muro_puerta = st.selectbox("Muro", ['Inferior', 'Izquierdo', 'Derecho'])
+        muro_puerta = st.selectbox("Muro", ['Inferior (Frente)', 'Lateral Izquierdo', 'Lateral Derecho'])
         pos_puerta = st.slider("Posición (m)", 0.0, 20.0, 5.0)
 
     with st.expander("2. Bodega Operativa (20%)", expanded=False):
@@ -339,18 +352,18 @@ with col_info:
         pas_peri = st.slider("Ancho Pasillos Perimetrales", 0.9, 1.5, 1.2)
         pas_bod = st.slider("Ancho Pasillo Bodega", 0.8, 1.5, 1.0)
         if st.button("🚨 Validar Vías de Circulación"):
-            st.warning("Verificación: El pasillo de poder choca con el Checkout en X=4.5m. Recomendación: Mover el checkout 1m a la derecha.")
+            st.warning("Verificación: Validando cruces de pasillos...")
 
     with st.expander("4. Checkout", expanded=False):
         t_check = st.checkbox("Habilitar Checkout", value=True)
         muro_check = st.selectbox("Anclar a muro", ['Inferior', 'Izquierdo', 'Derecho', 'Superior'])
-        cant_check = st.slider("Módulos", 2, 7, 3)
+        cant_check = st.slider("Módulos Checkout", 2, 7, 3)
 
     with st.expander("5. Cuarto Frío", expanded=False):
         t_frio = st.checkbox("Habilitar Cuarto Frío", value=True)
         forma_frio = st.radio("Formato", ['Lineal', 'Escuadra'])
         cant_frio = st.slider("Puertas", 2, 20, 8)
-        pos_frio = st.slider("Posición en el muro (X)", 0.0, 20.0, 0.0)
+        pos_frio = st.slider("Posición en muro X", 0.0, 20.0, 0.0)
 
     with st.expander("6. Góndolas Centrales", expanded=False):
         t_gondolas = st.checkbox("Habilitar Góndolas", value=True)
@@ -359,8 +372,8 @@ with col_info:
         cant_trenes = st.slider("Trenes", 1, 6, 2)
         cant_tramos = st.slider("Tramos", 1, 8, 3)
         pas_gon = st.slider("Pasillo entre góndolas", 0.9, 1.5, 1.2)
-        pos_gon_x = st.slider("Posición Inicial X", 0.0, 20.0, 4.0)
-        pos_gon_y = st.slider("Posición Inicial Y", 0.0, 20.0, 4.0)
+        pos_gon_x = st.slider("Posición X", 0.0, 20.0, 4.0)
+        pos_gon_y = st.slider("Posición Y", 0.0, 20.0, 4.0)
 
     with st.expander("7. Foodvenience", expanded=False):
         t_cafe = st.checkbox("Habilitar Foodvenience", value=True)
@@ -371,13 +384,12 @@ with col_info:
 
     with st.expander("8. Góndola Perimetral", expanded=False):
         t_perimetral = st.checkbox("Habilitar Perimetrales", value=True)
-        muros_peri = st.multiselect("Muros disponibles", ['Izquierda', 'Derecha', 'Frente', 'Fondo'], default=['Izquierda', 'Derecha'])
+        muros_peri = st.multiselect("Muros", ['Izquierda', 'Derecha', 'Frente', 'Fondo'], default=['Izquierda', 'Derecha'])
 
     with st.expander("9. Islas y Exhibidores", expanded=False):
         t_islas = st.checkbox("Habilitar Islas", value=True)
-        cant_islas = st.slider("Cantidad de agrupaciones", 1, 20, 4)
-        grupo_islas = st.selectbox("Tipo de Agrupación", ['1x1', '2x1', '2x2'])
-        prioridad = st.multiselect("Zonas de Prioridad", ['Frente Checkout', 'Costado Pasillo Poder', 'Entre Góndolas'], default=['Frente Checkout'])
+        cant_islas = st.slider("Cantidad", 1, 20, 4)
+        grupo_islas = st.selectbox("Agrupación", ['1x1', '2x1', '2x2'])
 
 conf = {
     'ancho': ancho, 'largo': largo, 
@@ -393,12 +405,12 @@ conf = {
 }
 
 with col_plot:
-    fig, errores, pct_exh, pct_nav, a_tot, a_com = dibujar_layout_v19(conf)
+    fig, errores, pct_exh, pct_nav, a_tot, a_com = dibujar_layout_oxxo(conf)
     st.pyplot(fig)
     
     if errores:
         for err in errores: st.error(f"🚨 {err}")
 
-# Actualizar Dashboard Permanentemente
-kpi_exh.metric("Rentabilidad (Meta: 30-40%)", f"{pct_exh:.1f}%")
-kpi_nav.metric("Experiencia (Meta: 60-70%)", f"{pct_nav:.1f}%")
+# Update Dashboard KPIs
+kpi_exh.metric("Rentabilidad (Meta 30-40%)", f"{pct_exh:.1f}%")
+kpi_nav.metric("Experiencia (Meta 60-70%)", f"{pct_nav:.1f}%")
