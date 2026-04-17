@@ -46,6 +46,14 @@ def normalizar_rotacion(r):
     if 90 < r < 270: r -= 180
     return r
 
+# --- MOTOR DE TRANSFORMACIÓN ESPACIAL ---
+def obtener_transformacion(muro, ancho_orig, largo_orig):
+    def transform(x, y, w, h, rot_texto=0):
+        if muro == 'Inferior (Frente)': return x, y, w, h, rot_texto
+        elif muro == 'Lateral Izquierdo': return y, x, h, w, rot_texto - 90
+        elif muro == 'Lateral Derecho': return ancho_orig - y - h, x, h, w, rot_texto + 90
+    return transform
+
 def dibujar_layout_oxxo_v22(conf):
     W, L = conf['ancho'], conf['largo']
 
@@ -57,7 +65,7 @@ def dibujar_layout_oxxo_v22(conf):
     ax.xaxis.set_major_locator(MultipleLocator(1))
     ax.yaxis.set_major_locator(MultipleLocator(1))
     ax.grid(which='major', color='#E5E7E9', linestyle='-', linewidth=0.5, zorder=0)
-    
+
     # DOBLE CAPA DE COLISIÓN
     obs_fisicos = []  
     obs_pasillos = [] 
@@ -296,7 +304,7 @@ def dibujar_layout_oxxo_v22(conf):
     pct_nav = 100 - pct_exh
     
     ax.set_aspect('equal')
-    plt.title(f"Store Planning: {conf['nombre_tienda']} | Formato: {clasificar_formato(area_total)}")
+    plt.title(f"Store Planning OXXO: {conf['nombre_tienda']} | Formato: {clasificar_formato(area_total)}")
     return fig, errores, pct_exh, pct_nav, area_total, area_comercial, a_op
 
 # --- INTERFAZ STREAMLIT ---
@@ -442,7 +450,7 @@ conf.update({
 })
 
 with col_plot:
-    fig, errores, pct_exh, pct_nav, a_tot, a_com, a_op_real = dibujar_layout_oxxo_v21(conf)
+    fig, errores, pct_exh, pct_nav, a_tot, a_com, a_op_real = dibujar_layout_oxxo_v22(conf)
     st.pyplot(fig)
     
     # Exportaciones Vectoriales (CAD/PDF)
